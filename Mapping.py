@@ -199,9 +199,16 @@ class Mapping(QWidget):
         self.lineRetract.editingFinished.connect(lambda: _update_att(int(self.lineRetract.text()), self.settingsApproach.retract))
 
         self.labelApproach=QLabel('Stop Criteria'); self.layoutApproach.addWidget(self.labelApproach, 2,0)
+        self.labelApproach.setToolTip(
+            """Choose the method to evaluate the landing during the tip approach:
+Open Circuit Potential -> Absolute change in Open Circuit Potential
+Potentiostatic -> Apply a DC potential and determine the change in current, absolute (\u0394A) or relative (%)
+Alternating Current -> Apply an AC potential and determine the change in current, absolute (\u0394A) or relative (%)
+            """)
+        
         self.comboApproach= QComboBox(); self.layoutApproach.addWidget(self.comboApproach, 2,1)
+        self.comboApproach.addItem('Open Circuit Potential')
         self.comboApproach.addItem('Potentiostatic')
-        self.comboApproach.addItem('Galvanostatic')
         self.comboApproach.currentIndexChanged.connect(lambda: self.stackApproach.setCurrentIndex(self.comboApproach.currentIndex()))
         self.comboApproach.currentIndexChanged.connect(lambda: _update_att(self.comboApproach.currentText(), self.settingsApproach.stop))
 

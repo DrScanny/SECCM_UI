@@ -161,6 +161,38 @@ class Biologic():
                     VMP300.read_data(dataFile)
                     if VMP300.status == "STOP":
                         break
+
+    def approach(self, approachSettings: SECCM_Settings.ApproachSettings):
+
+        match approachSettings.stop:
+            case 'Open Circuit Potential':
+                 header= self.load_technique(SECCM_Settings.OCPsettings(duration= 21600, dt=1e-2, eRange=1))
+                 upperStop= SECCM_Settings.ApproachSettings.dE
+                 lowerStop= -SECCM_Settings.ApproachSettings.dE
+                 upperUnit= False
+                 lowerUnit= False
+
+            case 'Potentiostatic':
+                header= self.load_technique(SECCM_Settings.CAsettings(duration= 21600,  potential= SECCM_Settings.ApproachSettings.potential, dt=1e-2))
+                upperStop= SECCM_Settings.ApproachSettings.dI_pos
+                lowerStop= SECCM_Settings.ApproachSettings.dI_neg
+
+                if SECCM_Settings.ApproachSettings.dI_pos_unit=='%':
+                    upperUnit= SECCM_Settings.ApproachSettings.dI_pos_unit
+                    lowerUnit= SECCM_Settings.ApproachSettings.dI_neg_unit
+                    
+            case 'Alternating Current':
+                print('Not implemented yet')
+
+            case _:
+                return "Error Biologic.approach"
+                                                                 
+        echemData= []
+        self.start_channel()
+        while True:
+                    VMP300.read_data()
+                    if VMP300.status == "STOP":
+                        break
         
 
 if __name__ == '__main__':
