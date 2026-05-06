@@ -1,6 +1,6 @@
 from pipython import GCSDevice, datarectools, pitools
 import SECCM_Settings
-
+import time
 
 """
 Collection of function to control the PI controllers and stage
@@ -10,7 +10,7 @@ General Information
     U-781/C867 (Olympus)
     {
         Instance name: self.olympus
-        Serial Number: 
+        Serial Number: 0125076674
         Axis: [X:1, Y:2]
         Default Distance unit: mm (to be confirmed)
         
@@ -34,117 +34,136 @@ General Information
         
     }
 
-Template for function
-    Assume the controller/stage will already be instantiated (See name above)
-    To make the function as general and reusable as possible arguments will be required instead of referenced directly as a class method
-        1- Controller (Mandatory): The stage/controller instance
-        2- Other variables (speed, coordinates): instance of dataclass like self.mapping.stageSettings, self.mapping.mapSettings, self.mapping.approachSettings
-
-
-    every function name should start with PI_...
-    def PI_function(controller: PIdevice, settings):
-        try:
-            Whatever your function is supposed to do
-            print('Feedback message of success')
-        except:
-            print('Feedback message of failure (specify file and function)') 
-
 """
 
-# Instance of settings
-stageSettings= SECCM_Settings.StageSettings()
-mapSettings= SECCM_Settings.MapSettings()
-approachSettings= SECCM_Settings.ApproachSettings()
+class Positioner:
 
+    def __init__(self, serialnum):
 
-# Instance of positionner
-ncube= GCSDevice()
-mercury= GCSDevice()
-olympus= GCSDevice()
-
-# General code to connect to device. 
-def connect(PIdevice:GCSDevice, serial:str):
-    try: 
-        PIdevice.ConnectUSB(serial)
-        print (f'connected: {ncube.qIDN().strip()}')
-        return ncube.qIDN().strip()
-    except:
-        print('Failed to connect to PI device: PI -> PI_connect()') 
-
-
-def initZ(PIdevice:GCSDevice, ref:str, servo: bool, vel:float= 1, accel: float | None = None, decel: float | None= None):
-    """
-        'FRF': References the stage using the reference position.
-        'FNL': References the stage using the negative limit switch.
-        'FPL': References the stage using the positive limit switch.
-        'POS': Sets the current position of the stage to 0.0.
-        'ATZ': Runs an auto zero procedure.
-    """
-    try:
-        connect(PIdevice, '0026550002')
-        pitools.DeviceStartup(PIdevice, stage=None, refmodes= ref, servostates= servo, controlmodes= None)
-        PIdevice.VEL('1', vel)
-
-        if accel:
-            pass
-        if decel:
-            pass
-
-        print('Initialized device successfully')
-        return True
-    
-    except:
-        print('Failed to initialize the device')
-        return False
-    
-def initXY(PIdevice:GCSDevice, ref:str, servo: bool, vel:float= 1, accel: float | None = None, decel: float | None= None):
-    """
-        'FRF': References the stage using the reference position.
-        'FNL': References the stage using the negative limit switch.
-        'FPL': References the stage using the positive limit switch.
-        'POS': Sets the current position of the stage to 0.0.
-        'ATZ': Runs an auto zero procedure.
-    """
-    try:
-        connect(PIdevice, '0026550002')
-        pitools.DeviceStartup(PIdevice, stage=None, refmodes= ref, servostates= servo, controlmodes= None)
-        PIdevice.VEL('1', vel)
-
-        if accel:
-            pass
-        if decel:
-            pass
-
-        print('Initialized device successfully')
-        return True
-    
-    except:
-        print('Failed to initialize the device')
-        return False
+        self.PIdevice= GCSDevice()  # Create PI device object
+        self.PIdevice.ConnectUSB(serialnum=serialnum) # Connect through USB
+        self.deviceID= self.PIdevice.qIDN().strip() # Print controller information
+        print(self.deviceID)
+        self.servo= None #Servo Info
+        self.axes= len(self.PIdevice.axes) # Get the number of axis
 
     
-# Example of code to move piezo
-def piezoMove(PIdevice:GCSDevice, settings: SECCM_Settings.ApproachSettings, axis:str= '3')-> None:
-    try:
-        device= {PIdevice.qIDN()}
-        servoState= PIdevice.qSVO(axis) #Query the specific axis servo state: Servo Off-> open-loop, Servo On-> closed loop
-        if not servoState: #If servo is not On, then turn them on
-            PIdevice.SVO(axis, 1)
-        velocity= PIdevice.VEL(axis, 1) #Set PIdevice velocity in closed-loop to 1 um/s (Unit of speed for each device is different by default)
-        PIdevice.MOV(axis, 10)
+    def servo_on(self, axesServo:dict[str,bool]|None= None):
+        #The argument must be written as {'AXIS_1': True or False, 'AXIS_2': True or False, ...}
+        if axesServo:
+            if len(axesServo)<=self.axes:
+                self.PIdevice.SVO(axesServo)
 
-        print(f'Moved {device} to {PIdevice.qMOV(axis)} at velocity of {velocity} \u03bcm/s')
-    
-    except:
-        # Return error message, still need to intercept the error message from PI packages and incorporate into our own message
-        print(f'Failed to move {PIdevice.qIDN()} to {PIdevice.qMOV(axis)}')
-    
+            raise Exception(f'Number of axis must be less than {self.axes}')
 
-if __name__ == '__main__':
-    # from pipython import PILogger, DEBUG, INFO, WARNING, ERROR, CRITICAL
-    # PILogger.setLevel(DEBUG)
+        else:
+            self.PIdevice.SVO(self.axes, True)
+        print(self.PIdevice.qSVO(self.axes))
 
-    ncube= GCSDevice()
-    connect(ncube,'0125021719')
-    
-  
+
+    def reference_axes(self, axesRef:list[str]|None =None):
+        #The argument is a list ['AXIS_1', 'AXIS_2', ...]
+        if axesRef:
+            if len(axesRef)<=self.axes:
+                self.PIdevice.FRF(axesRef)
+
+            raise Exception(f'Number of axis must be less than {self.axes}')
+        else:
+            self.PIdevice.FRF()
+
+        # Wait until referencing complete
+        while not all(self.PIdevice.qFRF(self.axes).values()):
+            time.sleep(0.1)
+
+    def initialize_stage(self):
+
+        self.servo_on()
+        self.reference_axes()
+
+    def wait_until_done(self):
+        while any(self.PIdevice.IsMoving().values()):
+            time.sleep(0.001)
+
+    def set_motion_parameters(self, velocity=1, acceleration=1, deceleration=1):
+
+        # Set velocity
+        self.PIdevice.VEL(self.axes, velocity)
+        # Set acceleration
+        self.PIdevice.ACC(self.axes, acceleration)
+        # Set deceleration
+        self.PIdevice.DEC(self.axes, deceleration)
+
+    def moveABS(self, coord:dict[str,float]|None= None):
+        #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
+        if coord:
+            if len(coord)<=self.axes:
+                self.PIdevice.MOV(coord)
+                self.wait_until_done()
+
+            raise Exception(f'Number of axis must be less than {self.axes}')
+
+    def moveREL(self, displacement:dict[str,float]|None= None):
+        #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
+        if displacement:
+            if len(displacement)<=self.axes:
+                self.PIdevice.MVR(displacement)
+                self.wait_until_done()
+
+            raise Exception(f'Number of axis must be less than {self.axes}')
+
+    def get_position(self):
+
+        positions= self.PIdevice.qPOS()
+
+        return positions
+
+    def get_travel_limits(self):
+
+        minimum= self.PIdevice.qTMN()
+        maximum= self.PIdevice.qTMX()
+
+        return minimum, maximum
+
+    def stop(self):
+        self.PIdevice.STP()
+
+    def close(self):
+        self.PIdevice.CloseConnection()
+
+if __name__ == "__main__":
+
+    SERIAL = "0125076674"
+
+    # Create stage object
+    XYstage = Positioner(SERIAL)
+
+    # Turn servo on and reference axes
+    XYstage.initialize_stage()
+
+    # Print current position
+    print("Current position:")
+    print(XYstage.get_position())
+
+    # Print travel limits
+    print("Travel limits:")
+    print(XYstage.get_travel_limits())
+
+    # Set motion parameters
+    XYstage.set_motion_parameters()
+
+    # Relative move
+    XYstage.moveABS({'AXIS_1':1.5, 'AXIS_2':10.9})
+
+    print("New position:")
+    print(XYstage.get_position())
+
+    # Absolute move
+    XYstage.moveREL({'AXIS_1':1.5, 'AXIS_2':10.9})
+
+    print("New position:")
+    print(XYstage.get_position())
+
+    # Close connection
+    XYstage.close()
+
+

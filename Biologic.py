@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 
 from typing import TextIO
 
@@ -103,18 +104,14 @@ class Biologic():
         match techniqueSettings.technique:
             case 'CA':
                 tech_file, ecc_parms= ca_parm(self.board_type, self.api, techniqueSettings)
-                return "Time (s), E vs Ref (V), I (A), Cycle"
             case 'OCP':
                 tech_file, ecc_parms= ocp_parm(self.board_type, self.api, techniqueSettings)
-                return "Time (s), E vs Ref (V)"
             case 'CV':
                 tech_file, ecc_parms= cv_parm(self.board_type, self.api, techniqueSettings)
-                return "Time (s), E vs Ref (V), I (A), Cycle"
             case 'CP':
                 tech_file, ecc_parms= cp_parm(self.board_type, self.api, techniqueSettings)
-                return  "Time (s), E vs Ref (V), I (A), Cycle"
             case _:
-                return "No header"
+                print("> Invalid technique or settings")
 
         # BL_LoadTechnique
         try: 
@@ -122,46 +119,78 @@ class Biologic():
         except:
             print("> Invalid technique or settings")
 
-
     def start_channel(self):
 
         self.api.StartChannel(self.id_, self.channel)
-
-    def read_data(self, filename:TextIO | None= None):
-        
-        self.data= self.api.GetData(self.id_, self.channel)
-        self.status, self.tech_name= get_info_data(self.api, self.data)
-
-        for output in get_experiment_data(self.api, self.data, self.tech_name, self.board_type):
-            dataline= ','.join(str(item) for item in output.values())
-            if filename:
-                dataFile.write(dataline)
-                dataFile.write('\n')
-            else:
-                print(dataline)
 
     def disconnect(self):
         self.api.Disconnect(self.id_)
         print('Disconnected from potentiostat')
 
-    def run_exp(self, filename:str, techList:list[  SECCM_Settings.OCPsettings 
-                                                  | SECCM_Settings.CAsettings 
-                                                  | SECCM_Settings.CVsettings 
-                                                  | SECCM_Settings.CPsettings]):
-        
-        with open(filename, 'a') as dataFile:
-            
-            for index, tech in enumerate(techList): 
-                header= self.load_technique(tech)
-                dataFile.write(f'Technique {index}: {tech.technique} \n')
-                dataFile.write(header)
-                self.start_channel()
+    def runExperiments(self, techList:list[  SECCM_Settings.OCPsettings 
+                                            |SECCM_Settings.CAsettings 
+                                            |SECCM_Settings.CVsettings 
+                                            |SECCM_Settings.CPsettings]
+                                            ,datafile:TextIO|None= None):
+        echemData={}
+        for index, tech in enumerate(techList):
+            data=[]
+            self.load_technique(tech)
+            self.start_channel()
 
-                while True:
-                    VMP300.read_data(dataFile)
-                    if VMP300.status == "STOP":
-                        break
+            if datafile:
+                datafile.write(tech.header+'\n')
 
+            while True:
+                self.data= self.api.GetData(self.id_, self.channel)
+                self.status, self.tech_name= get_info_data(self.api, self.data)
+                for output in get_experiment_data(self.api, self.data, self.tech_name, self.board_type):
+                    dataline= ','.join(str(item) for item in output.values())
+                    data.append(dataline)
+
+                    if datafile:
+                        dataFile.write(dataline +'\n')
+                    else:
+                        print(dataline)
+
+                if self.status == "STOP":
+                    echemData[index:data]
+                    break
+        return echemData
+
+    def getApproachStop(self, approachSettings: SECCM_Settings.ApproachSettings):
+        match approachSettings.stop:
+            case 'Open Circuit Potential':
+                    tech= SECCM_Settings.OCPsettings(duration= 15, dt=0.1, eRange=1)
+                    echemData=np.array(self.runExperiments([tech])[1])
+                    bulk= np.average(echemData[int(len(echemData)*2/3):-1])
+                    upperStop= bulk+SECCM_Settings.ApproachSettings.dE
+                    lowerStop= bulk-SECCM_Settings.ApproachSettings.dE
+
+                    return lowerStop, upperStop
+                             
+            case 'Potentiostatic':
+                tech= SECCM_Settings.CAsettings(duration= 15,  potential= SECCM_Settings.ApproachSettings.potential, dt=0.1)
+                echemData=np.array(self.runExperiments([tech])[1])
+                bulk= np.average(echemData[int(len(echemData)*2/3):-1])
+
+                if SECCM_Settings.ApproachSettings.dI_pos_unit=='%':
+                    upperStop= SECCM_Settings.ApproachSettings.dI_pos*bulk
+                    lowerStop= SECCM_Settings.ApproachSettings.dI_neg*bulk
+
+                elif SECCM_Settings.ApproachSettings.dI_pos_unit=='A':
+                    upperStop= SECCM_Settings.ApproachSettings.dI_pos+bulk
+                    lowerStop= SECCM_Settings.ApproachSettings.dI_neg-bulk
+
+                return lowerStop, upperStop
+                   
+            case 'Alternating Current':
+                print('Not implemented yet')
+
+            case _:
+                return "Error Biologic.approach" 
+
+    
     def approach(self, approachSettings: SECCM_Settings.ApproachSettings):
 
         match approachSettings.stop:
@@ -186,14 +215,7 @@ class Biologic():
 
             case _:
                 return "Error Biologic.approach"
-                                                                 
-        echemData= []
-        self.start_channel()
-        while True:
-                    VMP300.read_data()
-                    if VMP300.status == "STOP":
-                        break
-        
+                                                                
 
 if __name__ == '__main__':
 
@@ -207,18 +229,10 @@ if __name__ == '__main__':
         VMP300= Biologic()
         VMP300.connect()
 
-        techList= [ocp, ca]
+        techList= [ocp]
         
-        with open('test_dataFile', 'a') as dataFile:
-
-            for index, tech in enumerate(techList): 
-                VMP300.load_technique(tech)
-                dataFile.write(f'Technique {index}: {tech.technique} \n')
-                VMP300.start_channel()
-                while True:
-                    VMP300.read_data(dataFile)
-                    if VMP300.status == "STOP":
-                        break
+        data= VMP300.runExperiments
+        print(data)
 
         VMP300.disconnect()
 

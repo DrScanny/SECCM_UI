@@ -43,6 +43,7 @@ class CAsettings():
     iRange: int=12  #Current Range by default AUTO
     eRange: int= 0 #Potential range
     bandwith: int= 8 #Bandwith: controls the response time of feedback loop; Lower -> more stable, Higher -> Faster speed response to change in cell
+    header: str= "Time (s), E vs Ref (V), I (A), Cycle"
 
 @dataclass
 class CPsettings():
@@ -55,6 +56,7 @@ class CPsettings():
     iRange: int= 4 #Current Range by default AUTO
     eRange: int= 0 #Potential range
     bandwith: int= 8 #Bandwith: controls the response time of feedback loop; Lower -> more stable, Higher -> Faster speed response to change in cell
+    header: str= "Time (s), E vs Ref (V), I (A), Cycle"
 
 @dataclass
 class CVsettings():
@@ -68,6 +70,7 @@ class CVsettings():
     iRange: int= 12 #Current Range by default AUTO
     eRange: int=0 #Potential range
     bandwith: int =8 #Bandwith: controls the response time of feedback loop; Lower -> more stable, Higher -> Faster speed response to change in cell
+    header: str= "Time (s), E vs Ref (V), I (A), Cycle"
 
 @dataclass
 class OCPsettings():
@@ -76,3 +79,4 @@ class OCPsettings():
     dt: float= 1 # Record potential at each time increment in s
     dE: float= 1 # Record potential at each potential increment in V
     eRange: int= 0   # E range, int corresponds to a potential range
+    header: str= "Time (s), E vs Ref (V)"
