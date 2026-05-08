@@ -25,12 +25,8 @@ class ApproachSettings():
     speed: float= 1 #Approach speed in um
     retract: int= 50 #Tip retraction height after landing in um
     stop: str= 'Potentiostatic' #Technique to use for approach stop
-    dE: float= 0.1 #Potentiostatic: Change in potential for approach stop
-    dI_pos: float= 200 #Galvanostatic: Positive feedback threshold for approach stop
-    dI_pos_unit: str= '%' #Galvanostatic: Units for approach stop: V or %
-    dI_neg: float= 75 #Galvanostatic: Negative feedback threshold for approach stop
-    dI_neg_unit: str= '%' #Galvanostatic: Units for approach stop: V or %
-    potential: float= 0.1 #Galvanostatic: Potential to apply during approach
+    Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
+    Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
 
 @dataclass
 class CAsettings():

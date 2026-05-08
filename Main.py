@@ -38,7 +38,7 @@ class Main(QMainWindow):
 
         #Setting up main window
         self.setWindowTitle("MercaThor: Electrochemical Imaging") #Window title
-        self.setStyleSheet("font: 11pt")
+        self.setStyleSheet("font: 10pt")
 
         self.mainFrame=QFrame()
         self.mainFrame_layout1= QHBoxLayout(); self.mainFrame.setLayout(self.mainFrame_layout1)
@@ -101,7 +101,6 @@ class Main(QMainWindow):
           
         #endregion
 
-      
         #Signal and event
         self.experiments.list.itemDoubleClicked.connect(self.Main_AddTechnique)
         self.experiments.addButton.clicked.connect(self.Main_AddTechnique)

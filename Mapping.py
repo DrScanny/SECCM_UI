@@ -131,6 +131,7 @@ class Mapping(QWidget):
         self.labelYdistance.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.labelXmap= QLabel('Distance'); self.layoutMapSize.addWidget(self.labelXmap,1,0)
+        self.labelXmap.setToolTip('Distance (\u03bcm) between each landing per direction (X,Y)')
         self.lineXdistance= QLineEdit(); self.layoutMapSize.addWidget(self.lineXdistance,1,1)
         self.lineXdistance.setText('0')
         self.lineXdistance.setValidator(QIntValidator(0, 500))
@@ -140,6 +141,7 @@ class Mapping(QWidget):
         self.lineXlandings.setValidator(QIntValidator(0, 500))
 
         self.labelYmap= QLabel('No. of Landings'); self.layoutMapSize.addWidget(self.labelYmap,2,0)
+        self.labelYmap.setToolTip('Number of landings per direction (X,Y)')
         self.lineYdistance= QLineEdit(); self.layoutMapSize.addWidget(self.lineYdistance,1,2)
         self.lineYdistance.setText('0')
         self.lineYdistance.setValidator(QIntValidator(0, 100))
@@ -149,16 +151,21 @@ class Mapping(QWidget):
         self.lineYlandings.setValidator(QIntValidator(0, 100))
 
         self.labelPattern= QLabel('Map Pattern'); self.layoutMapSize.addWidget(self.labelPattern,3,0)
+        self.labelPattern.setToolTip('Set the mapping pattern: \n-Snake: Directly move in Y at the end of the line \n-Straight: Return to initial X position before moving in Y')
+
         self.comboPattern= QComboBox(); self.layoutMapSize.addWidget(self.comboPattern,3,1,1,2)
         self.comboPattern.addItems(['Snake', 'Straight'])
         self.comboPattern.currentIndexChanged.connect(lambda: _update_att(self.comboPattern.currentText(), self.settingsMap.pattern))
 
         self.labelMethod= QLabel('Method'); self.layoutMapSize.addWidget(self.labelMethod, 4,0)
+        self.labelMethod.setToolTip(('Select the Mapping Method \nNo Map: No mapping, direct echem measurement \nSECCM Hopping: Mapping in SECCM by approaching tip \nSECM Hopping: Mapping in SECM using approach curves \nConstant Distance: Mapping with the tip kept at a constant distance'))
+
         self.comboMap= QComboBox(); self.layoutMapSize.addWidget(self.comboMap, 4,1,1,2)
-        self.comboMap.setToolTip('Select the Mapping Method \nNone: No mapping, direct echem measurement \nHopping: Mapping using approach curves \nConstant Distance: Mapping with the tip kept at a constant distance')
-        self.comboMap.addItem('None')
-        self.comboMap.addItem('Hopping')
-        self.comboMap.addItem('Constant Distance')
+        self.comboMap.setToolTip('Select the Mapping Method \nNo Map: No mapping, direct echem measurement \nSECCM Hopping: Mapping in SECCM by approaching tip \nSECM Hopping: Mapping in SECM using approach curves \nConstant Distance: Mapping with the tip kept at a constant distance')
+        self.comboMap.addItem('No MAP')
+        self.comboMap.addItem('SECCM Hopping')
+        self.comboMap.addItem('SECM Hopping')
+        self.comboMap.addItem('SECM Constant Distance')
         self.comboMap.setCurrentIndex(1)
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: _update_att(self.comboMap.currentText(), self.settingsMap.mode))
@@ -186,11 +193,13 @@ class Mapping(QWidget):
         self.labelSpeedUnit= QLabel('\u03bcm/s'); self.layoutApproach.addWidget(self.labelSpeedUnit,0,2)
         
         self.lineSpeed= QLineEdit(); self.layoutApproach.addWidget(self.lineSpeed,0,1)
+        self.labelSpeed.setToolTip('Set the piezo speed for tip approach (0.1 to 5 \u03bcm/s). Higher speed (>1 \u03bcm/s) can cause tip crash!')
         self.lineSpeed.setText('1')
         self.lineSpeed.setFixedWidth(110)
         self.lineSpeed.editingFinished.connect(lambda: _update_att(float(self.lineSpeed.text()), self.settingsApproach.speed))
 
         self.labelRetract= QLabel('Retract by'); self.layoutApproach.addWidget(self.labelRetract,1,0)
+        self.labelRetract.setToolTip('Set the height at which to retract the piezo (hopping) between landings.')
         self.labelRetractUnit= QLabel('\u03bcm'); self.layoutApproach.addWidget(self.labelRetractUnit,1,2)
        
         self.lineRetract= QLineEdit(); self.layoutApproach.addWidget(self.lineRetract,1,1)
@@ -207,7 +216,7 @@ Alternating Current -> Apply an AC potential and determine the change in current
             """)
         
         self.comboApproach= QComboBox(); self.layoutApproach.addWidget(self.comboApproach, 2,1)
-        self.comboApproach.addItem('Open Circuit Potential')
+        self.comboApproach.addItem('Open Circuit')
         self.comboApproach.addItem('Potentiostatic')
         self.comboApproach.currentIndexChanged.connect(lambda: self.stackApproach.setCurrentIndex(self.comboApproach.currentIndex()))
         self.comboApproach.currentIndexChanged.connect(lambda: _update_att(self.comboApproach.currentText(), self.settingsApproach.stop))
@@ -218,26 +227,40 @@ Alternating Current -> Apply an AC potential and determine the change in current
 
         self.stackApproach= QStackedWidget()
         self.layoutGroupApproach.addWidget(self.stackApproach)
-        self.stackApproach.addWidget(self.widgetPot())
-        self.stackApproach.addWidget(self.widgetGal())
+        self.stackApproach.addWidget(self.SECCM_OCP())
+        self.stackApproach.addWidget(self.SECCM_Pot())
 
         return self.groupApproach
     
-    def widgetPot(self):
+    
+    def SECCM_OCP(self):
+        self.framePot= QFrame()
+        return self.framePot
+    
+    def SECCM_Pot(self):
         self.framePot= QFrame()
         self.layoutPot= QGridLayout(self.framePot)
         self.setLayout(self.layoutPot)
 
-        self.labelDeltaE= QLabel('\u00B1 \u0394E'); self.layoutPot.addWidget(self.labelDeltaE,1,0) 
-        self.lineDeltaE= QLineEdit(); self.layoutPot.addWidget(self.lineDeltaE,1,1)
-        self.lineDeltaE.setText('0.1')
-        self.lineDeltaE.editingFinished.connect(lambda: _update_att(float(self.lineDeltaE.text()), self.settingsApproach.dE))
+        self.labelE= QLabel('Applied Potential'); self.layoutPot.addWidget(self.labelE,1,0) 
+        self.labelE.setToolTip('Set the applied potential (negative or positive values) during the tip approach to generate a current when landing on a sample')
 
-        self.labelV= QLabel("V"); self.layoutPot.addWidget(self.labelV,1,2)
-        spacer = QSpacerItem(10, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum); self.layoutPot.addItem(spacer,2,0,2,2)
+        self.lineE= QLineEdit(); self.layoutPot.addWidget(self.lineE,1,1)
+        self.lineE.setText('0.1')
+        self.lineE.editingFinished.connect(lambda: _update_att(float(self.lineE.text()), self.settingsApproach.Eapp))
+        self.label_E_unit= QLabel("V"); self.layoutPot.addWidget(self.label_E_unit,1,2)
 
+        self.labelI= QLabel('Current limit'); self.layoutPot.addWidget(self.labelI,2,0) 
+        self.labelI.setToolTip('Set the current threshold in absolute value (positive values only) for stopping the tip approach \nSetting the current too high might cause a tip crash while a current too low might cause false stoppage ')
+
+        self.lineI= QLineEdit(); self.layoutPot.addWidget(self.lineI,2,1)
+        self.lineI.setText('1e-3')
+        self.lineI.editingFinished.connect(lambda: _update_att(float(self.lineI.text()), self.settingsApproach.Istop))
+        self.label_I_unit= QLabel("A"); self.layoutPot.addWidget(self.label_I_unit,2,2)
+        
         return self.framePot
     
+    """
     def widgetGal(self):
         self.frameGal= QFrame()
         self.layoutGal= QGridLayout(self.frameGal)
@@ -276,6 +299,7 @@ Alternating Current -> Apply an AC potential and determine the change in current
         self.comboNegI.currentIndexChanged.connect(lambda: _update_att(self.comboNegI.currentText(), self.settingsApproach.dI_neg_unit))
 
         return self.frameGal
+    """
 
 if __name__ == '__main__':
     app= QApplication([])

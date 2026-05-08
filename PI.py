@@ -35,7 +35,6 @@ General Information
     }
 
 """
-
 class Positioner:
 
     def __init__(self, serialnum):

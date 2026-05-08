@@ -1,8 +1,10 @@
 import os
 import sys
 import numpy as np
+import time
+import multiprocessing
 
-from typing import TextIO
+from typing import TextIO, Any
 
 import kbio.kbio_types as KBIO
 from kbio.c_utils import c_is_64b
@@ -17,6 +19,27 @@ from BiologicAPI.CP_biologic import cp_parm
 from BiologicAPI.CV_biologic import cv_parm
 
 import SECCM_Settings
+
+def _stopTip(potentiostatOutput, approachSettings: SECCM_Settings.ApproachSettings)-> bool:
+    match approachSettings.stop:
+        case 'Open Circuit Potential':
+            if abs(potentiostatOutput['Ewe'])<=1.5:
+                return True
+            else:
+                return False
+                
+        case 'Potentiostatic':
+            if abs(potentiostatOutput['Iwe']<SECCM_Settings.ApproachSettings.Istop):
+                return True
+            else:
+                return False
+        
+        case 'Alternating Current':
+            print('Not implemented yet')
+            return False
+        
+        case _:
+            return False
 
 class Biologic():
     
@@ -97,7 +120,6 @@ class Biologic():
         except:
             print("\nConnection to VMP-300 Failed: Biologic -> connect")
             return False
-            
 
     def load_technique(self, techniqueSettings):
 
@@ -120,103 +142,47 @@ class Biologic():
             print("> Invalid technique or settings")
 
     def start_channel(self):
-
         self.api.StartChannel(self.id_, self.channel)
 
     def disconnect(self):
         self.api.Disconnect(self.id_)
         print('Disconnected from potentiostat')
 
-    def runExperiments(self, techList:list[  SECCM_Settings.OCPsettings 
-                                            |SECCM_Settings.CAsettings 
-                                            |SECCM_Settings.CVsettings 
-                                            |SECCM_Settings.CPsettings]
-                                            ,datafile:TextIO|None= None):
+    def runExperiments(self, *techniques:  SECCM_Settings.OCPsettings 
+                                          |SECCM_Settings.CAsettings 
+                                          |SECCM_Settings.CVsettings 
+                                          |SECCM_Settings.CPsettings
+                            ,dataFile:TextIO|None= None):
+                            
         echemData={}
-        for index, tech in enumerate(techList):
+        for index, tech in enumerate(techniques):
             data=[]
             self.load_technique(tech)
             self.start_channel()
 
-            if datafile:
-                datafile.write(tech.header+'\n')
+            if dataFile:
+                dataFile.write(tech.header+'\n')
 
             while True:
                 self.data= self.api.GetData(self.id_, self.channel)
                 self.status, self.tech_name= get_info_data(self.api, self.data)
                 for output in get_experiment_data(self.api, self.data, self.tech_name, self.board_type):
+
                     dataline= ','.join(str(item) for item in output.values())
                     data.append(dataline)
 
-                    if datafile:
+                    if dataFile:
                         dataFile.write(dataline +'\n')
                     else:
                         print(dataline)
 
                 if self.status == "STOP":
-                    echemData[index:data]
+                    echemData[index]= data
                     break
+
         return echemData
 
-    def getApproachStop(self, approachSettings: SECCM_Settings.ApproachSettings):
-        match approachSettings.stop:
-            case 'Open Circuit Potential':
-                    tech= SECCM_Settings.OCPsettings(duration= 15, dt=0.1, eRange=1)
-                    echemData=np.array(self.runExperiments([tech])[1])
-                    bulk= np.average(echemData[int(len(echemData)*2/3):-1])
-                    upperStop= bulk+SECCM_Settings.ApproachSettings.dE
-                    lowerStop= bulk-SECCM_Settings.ApproachSettings.dE
-
-                    return lowerStop, upperStop
-                             
-            case 'Potentiostatic':
-                tech= SECCM_Settings.CAsettings(duration= 15,  potential= SECCM_Settings.ApproachSettings.potential, dt=0.1)
-                echemData=np.array(self.runExperiments([tech])[1])
-                bulk= np.average(echemData[int(len(echemData)*2/3):-1])
-
-                if SECCM_Settings.ApproachSettings.dI_pos_unit=='%':
-                    upperStop= SECCM_Settings.ApproachSettings.dI_pos*bulk
-                    lowerStop= SECCM_Settings.ApproachSettings.dI_neg*bulk
-
-                elif SECCM_Settings.ApproachSettings.dI_pos_unit=='A':
-                    upperStop= SECCM_Settings.ApproachSettings.dI_pos+bulk
-                    lowerStop= SECCM_Settings.ApproachSettings.dI_neg-bulk
-
-                return lowerStop, upperStop
-                   
-            case 'Alternating Current':
-                print('Not implemented yet')
-
-            case _:
-                return "Error Biologic.approach" 
-
-    
-    def approach(self, approachSettings: SECCM_Settings.ApproachSettings):
-
-        match approachSettings.stop:
-            case 'Open Circuit Potential':
-                 header= self.load_technique(SECCM_Settings.OCPsettings(duration= 21600, dt=1e-2, eRange=1))
-                 upperStop= SECCM_Settings.ApproachSettings.dE
-                 lowerStop= -SECCM_Settings.ApproachSettings.dE
-                 upperUnit= False
-                 lowerUnit= False
-
-            case 'Potentiostatic':
-                header= self.load_technique(SECCM_Settings.CAsettings(duration= 21600,  potential= SECCM_Settings.ApproachSettings.potential, dt=1e-2))
-                upperStop= SECCM_Settings.ApproachSettings.dI_pos
-                lowerStop= SECCM_Settings.ApproachSettings.dI_neg
-
-                if SECCM_Settings.ApproachSettings.dI_pos_unit=='%':
-                    upperUnit= SECCM_Settings.ApproachSettings.dI_pos_unit
-                    lowerUnit= SECCM_Settings.ApproachSettings.dI_neg_unit
-                    
-            case 'Alternating Current':
-                print('Not implemented yet')
-
-            case _:
-                return "Error Biologic.approach"
-                                                                
-
+                      
 if __name__ == '__main__':
 
     try: 
@@ -229,11 +195,52 @@ if __name__ == '__main__':
         VMP300= Biologic()
         VMP300.connect()
 
-        techList= [ocp]
-        
-        data= VMP300.runExperiments
-        print(data)
+        event_limit= multiprocessing.Event() #Signal that the piezo has reached the limit
+        event_start= multiprocessing.Event() #Signal that the potentiostat has started a measurement for the approach
+        event_stop= multiprocessing.Event() #Signal that the tip stop ha sbeen triggered
 
+        event= {'limit': event_limit, 'start': event_start, 'stop': event_stop}
+
+        def approachPotentiostat(instrument: Biologic, approachTechnique, approachSettings, event):
+
+            while not event['stop'].is_set(): #Primary While loop -> Continue measurement until trigger or max range hit
+
+                # Measurements are reset each time the piezo hits the limit
+                instrument.load_technique(approachTechnique) 
+                instrument.start_channel()
+
+                """
+                    Secondary loop -> Runs the technique and acquire data. Once the loops is broken, the technique measurement is considered done
+                    Tee loop can be broken in 2 ways
+                        1- Each time the piezo reaches the limit (60 um). Signaled by the event['piezo']
+                        2- Once the tip stop has been triggered, the whole approach is stopped. Signaled by event['stop']
+                """
+
+                while True: 
+
+                    instrument.data= instrument.api.GetData(instrument.id_, instrument.channel)
+                    instrument.status, instrument.tech_name= get_info_data(instrument.api, instrument.data)
+
+                    for output in get_experiment_data(instrument.api, instrument.data, instrument.tech_name, instrument.board_type):
+                        event['limit'].clear() #Reset the piezo event flag
+                        event['start'].set() #Set the 'start' event flag. Signal that the echem measurement has started
+
+                        if _stopTip(output, approachSettings): # Function that determine if the tip should be stopped based on the stop criteria
+                            print('tip soppage')
+                            instrument.status= "STOP"
+                            event['stop'].set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
+                            break
+
+                    # Stop the measurement once the piezo limit is reached
+                    if event['limit'].is_set():
+                        print('Piezo reached limit. Relaxing')
+                        break
+                    
+
+                    if instrument.status == "STOP":
+                        break
+
+   
         VMP300.disconnect()
 
     except KeyboardInterrupt:
