@@ -1,5 +1,5 @@
 from pipython import GCSDevice, datarectools, pitools
-import SECCM_Settings
+import UI_Settings
 import time
 
 """
@@ -37,41 +37,45 @@ General Information
 """
 class Positioner:
 
-    def __init__(self, serialnum):
+    def __init__(self):
 
-        self.PIdevice= GCSDevice()  # Create PI device object
-        self.PIdevice.ConnectUSB(serialnum=serialnum) # Connect through USB
-        self.deviceID= self.PIdevice.qIDN().strip() # Print controller information
-        print(self.deviceID)
+        self.PI= GCSDevice()  # Create PI device object
+        self.deviceID= None # Print controller information
         self.servo= None #Servo Info
-        self.axes= len(self.PIdevice.axes) # Get the number of axis
+        self.axes= self.PI.axes # Get the number of axis
+        self.nAxes= len(self.axes)
+
+    def connect(self, serialnum):
+        self.PI.ConnectUSB(serialnum=serialnum) # Connect through USB
+        self.deviceID= self.PI.qIDN().strip() 
+        print(self.deviceID)
 
     
     def servo_on(self, axesServo:dict[str,bool]|None= None):
         #The argument must be written as {'AXIS_1': True or False, 'AXIS_2': True or False, ...}
         if axesServo:
-            if len(axesServo)<=self.axes:
-                self.PIdevice.SVO(axesServo)
+            if len(axesServo)<=self.nAxes:
+                self.PI.SVO(axesServo)
 
             raise Exception(f'Number of axis must be less than {self.axes}')
 
         else:
-            self.PIdevice.SVO(self.axes, True)
-        print(self.PIdevice.qSVO(self.axes))
+            self.PI.SVO(self.axes, True)
+        print(self.PI.qSVO(self.axes))
 
 
     def reference_axes(self, axesRef:list[str]|None =None):
         #The argument is a list ['AXIS_1', 'AXIS_2', ...]
         if axesRef:
-            if len(axesRef)<=self.axes:
-                self.PIdevice.FRF(axesRef)
+            if len(axesRef)<=self.nAxes:
+                self.PI.FRF(axesRef)
 
             raise Exception(f'Number of axis must be less than {self.axes}')
         else:
-            self.PIdevice.FRF()
+            self.PI.FRF()
 
         # Wait until referencing complete
-        while not all(self.PIdevice.qFRF(self.axes).values()):
+        while not all(self.PI.qFRF(self.axes).values()):
             time.sleep(0.1)
 
     def initialize_stage(self):
@@ -80,23 +84,23 @@ class Positioner:
         self.reference_axes()
 
     def wait_until_done(self):
-        while any(self.PIdevice.IsMoving().values()):
+        while any(self.PI.IsMoving().values()):
             time.sleep(0.001)
 
     def set_motion_parameters(self, velocity=1, acceleration=1, deceleration=1):
 
         # Set velocity
-        self.PIdevice.VEL(self.axes, velocity)
+        self.PI.VEL(self.axes, velocity)
         # Set acceleration
-        self.PIdevice.ACC(self.axes, acceleration)
+        self.PI.ACC(self.axes, acceleration)
         # Set deceleration
-        self.PIdevice.DEC(self.axes, deceleration)
+        self.PI.DEC(self.axes, deceleration)
 
     def moveABS(self, coord:dict[str,float]|None= None):
         #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
         if coord:
-            if len(coord)<=self.axes:
-                self.PIdevice.MOV(coord)
+            if len(coord)<=self.nAxes:
+                self.PI.MOV(coord)
                 self.wait_until_done()
 
             raise Exception(f'Number of axis must be less than {self.axes}')
@@ -104,37 +108,37 @@ class Positioner:
     def moveREL(self, displacement:dict[str,float]|None= None):
         #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
         if displacement:
-            if len(displacement)<=self.axes:
-                self.PIdevice.MVR(displacement)
+            if len(displacement)<=self.nAxes:
+                self.PI.MVR(displacement)
                 self.wait_until_done()
 
             raise Exception(f'Number of axis must be less than {self.axes}')
 
     def get_position(self):
 
-        positions= self.PIdevice.qPOS()
+        positions= self.PI.qPOS()
 
         return positions
 
     def get_travel_limits(self):
 
-        minimum= self.PIdevice.qTMN()
-        maximum= self.PIdevice.qTMX()
+        minimum= self.PI.qTMN()
+        maximum= self.PI.qTMX()
 
         return minimum, maximum
 
     def stop(self):
-        self.PIdevice.STP()
+        self.PI.STP()
 
     def close(self):
-        self.PIdevice.CloseConnection()
+        self.PI.CloseConnection()
 
 if __name__ == "__main__":
 
     SERIAL = "0125076674"
 
     # Create stage object
-    XYstage = Positioner(SERIAL)
+    XYstage= Positioner()
 
     # Turn servo on and reference axes
     XYstage.initialize_stage()

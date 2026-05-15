@@ -13,7 +13,9 @@ from Biologic import Biologic
 from ExpLoad import ExpLoad
 from Mapping import Mapping
 from TechSettings import TechSettings
-from Devices import Device
+from Device import Device
+from Approach import approachSECCM
+import UI_Settings
 
 """
 Main file for the SECCM software
@@ -124,7 +126,7 @@ class Main(QMainWindow):
             self.techSettings.stack.addWidget(page)
             self.techSettings.stack_changeWidget(page)
         else:
-            self.textLog.appendPlainText("Failed to load echem technique settings: Main.addTechnique")
+            print("Failed to load echem technique settings: Main.addTechnique")
 
     def Main_ChangeSettingsPage(self):
         item= self.experiments.tree.currentItem()
@@ -147,52 +149,31 @@ class Main(QMainWindow):
             super().keyPressEvent(event) 
     
     def Main_StartExp(self):
-        """
-        1- Preliminary testing
 
-            1- Verify Connection to all devices
-            2- Verify nothing else is happening
-            3- Open file dialog and create file to save data to
-        """
-        file_path, _ = QFileDialog.getSaveFileName(
+        #Create savefile for data measurement
+        filePath, _ = QFileDialog.getSaveFileName(
                                                     parent=None,
                                                     caption="Create Save File",
                                                     dir="",
                                                     filter="Text Files (*.txt);;All Files (*)")
         
-        
+        with open(filePath, "a") as f:
 
-        """
-        2- Set map landing coordinates and move to coordinates
+            # Loading technique from techList
+            techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+   
+            print(UI_Settings.Map.mode)
 
-            1- Determine landing coordinates
-            2- Move stage to coordinate
+            match UI_Settings.Map.mode:
+                case "None":
+                    print("Do echem only")
+                    print(techList)
 
-        """
+                case "SECCM":
+                    print("SECCM")
 
-        """
-        3- Setup and start approach curve
-
-            1- Load echem approach method
-            2- Initialize Coarse Z and nanocube settings and starting positions
-            3- Start approach curve
-            4- Stop when threshold reached
-
-
-        """
-        
-
-
-        """
-        3- Start measurements from experiment loadout
-
-            1- Load echem approach method
-            2- Initialize Coarse Z and nanocube settings and starting positions
-
-        """
-        # Loading technique from techList
-        techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
-        print(techList)
+                case "SECM":
+                    print("SECM")
 
 if __name__ == '__main__':
     

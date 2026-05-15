@@ -18,9 +18,9 @@ from BiologicAPI.OCP_biologic import ocp_parm
 from BiologicAPI.CP_biologic import cp_parm
 from BiologicAPI.CV_biologic import cv_parm
 
-import SECCM_Settings
+import UI_Settings
 
-def _stopTip(potentiostatOutput, approachSettings: SECCM_Settings.ApproachSettings)-> bool:
+def _stopTip(potentiostatOutput, approachSettings: UI_Settings.SECCM)-> bool:
     match approachSettings.stop:
         case 'Open Circuit Potential':
             if abs(potentiostatOutput['Ewe'])<=1.5:
@@ -29,7 +29,7 @@ def _stopTip(potentiostatOutput, approachSettings: SECCM_Settings.ApproachSettin
                 return False
                 
         case 'Potentiostatic':
-            if abs(potentiostatOutput['Iwe']<SECCM_Settings.ApproachSettings.Istop):
+            if abs(potentiostatOutput['Iwe']<UI_Settings.SECCM.Istop):
                 return True
             else:
                 return False
@@ -148,10 +148,10 @@ class Biologic():
         self.api.Disconnect(self.id_)
         print('Disconnected from potentiostat')
 
-    def runExperiments(self, *techniques:  SECCM_Settings.OCPsettings 
-                                          |SECCM_Settings.CAsettings 
-                                          |SECCM_Settings.CVsettings 
-                                          |SECCM_Settings.CPsettings
+    def runExperiments(self, *techniques:  UI_Settings.OCP
+                                          |UI_Settings.CA
+                                          |UI_Settings.CV
+                                          |UI_Settings.CP
                             ,dataFile:TextIO|None= None):
                             
         echemData={}
@@ -181,65 +181,18 @@ class Biologic():
                     break
 
         return echemData
-
-                      
+     
 if __name__ == '__main__':
 
     try: 
 
-        ocp= SECCM_Settings.OCPsettings('OCP', 10, 0.1, 1, 0)
-        ca= SECCM_Settings.CAsettings()
-        cv= SECCM_Settings.CVsettings()
-        cp= SECCM_Settings.CPsettings()
+        ocp= UI_Settings.OCP('OCP', 10, 0.1, 1, 0)
+        ca= UI_Settings.CA()
+        cv= UI_Settings.CV()
+        cp= UI_Settings.CP()
 
         VMP300= Biologic()
         VMP300.connect()
-
-        event_limit= multiprocessing.Event() #Signal that the piezo has reached the limit
-        event_start= multiprocessing.Event() #Signal that the potentiostat has started a measurement for the approach
-        event_stop= multiprocessing.Event() #Signal that the tip stop ha sbeen triggered
-
-        event= {'limit': event_limit, 'start': event_start, 'stop': event_stop}
-
-        def approachPotentiostat(instrument: Biologic, approachTechnique, approachSettings, event):
-
-            while not event['stop'].is_set(): #Primary While loop -> Continue measurement until trigger or max range hit
-
-                # Measurements are reset each time the piezo hits the limit
-                instrument.load_technique(approachTechnique) 
-                instrument.start_channel()
-
-                """
-                    Secondary loop -> Runs the technique and acquire data. Once the loops is broken, the technique measurement is considered done
-                    Tee loop can be broken in 2 ways
-                        1- Each time the piezo reaches the limit (60 um). Signaled by the event['piezo']
-                        2- Once the tip stop has been triggered, the whole approach is stopped. Signaled by event['stop']
-                """
-
-                while True: 
-
-                    instrument.data= instrument.api.GetData(instrument.id_, instrument.channel)
-                    instrument.status, instrument.tech_name= get_info_data(instrument.api, instrument.data)
-
-                    for output in get_experiment_data(instrument.api, instrument.data, instrument.tech_name, instrument.board_type):
-                        event['limit'].clear() #Reset the piezo event flag
-                        event['start'].set() #Set the 'start' event flag. Signal that the echem measurement has started
-
-                        if _stopTip(output, approachSettings): # Function that determine if the tip should be stopped based on the stop criteria
-                            print('tip soppage')
-                            instrument.status= "STOP"
-                            event['stop'].set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
-                            break
-
-                    # Stop the measurement once the piezo limit is reached
-                    if event['limit'].is_set():
-                        print('Piezo reached limit. Relaxing')
-                        break
-                    
-
-                    if instrument.status == "STOP":
-                        break
-
    
         VMP300.disconnect()
 

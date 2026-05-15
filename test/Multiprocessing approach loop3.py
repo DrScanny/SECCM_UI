@@ -9,20 +9,20 @@ This file has no useful code and serve has a draft to test some code
 """
 
 def simPot(tech:str, events:list[Any]):
-    randomList= list(range(1,31))
+    randomList= list(range(1,21))
     index=0
-    while not events[2].is_set():
+    while True:
         index+=1
         # Biologic.runExperiments()
         print(f'Starting approach number {index} using {tech}') 
-        time.sleep(1)
+        time.sleep(3)
         
         while True:
             events[0].clear()
             events[1].set()
             stopTrigger= random.choice(randomList)
             print(f'measured current {stopTrigger}')
-            time.sleep(0.5)
+            time.sleep(0.65)
             
             if stopTrigger==3:
                 print("Stop Trigger Activated!")
@@ -35,25 +35,39 @@ def simPot(tech:str, events:list[Any]):
                 time.sleep(1)
                 break
 
-
+        if events[2].is_set():
+            break
 
 
 def simPiezo(totalTime:int, events:list[Any]):
 
     while not events[2].is_set():
         events[1].wait()
-        print('Piezo moving'); 
-        time.sleep(totalTime)
-        
+        i=1
+        while i<totalTime+1:
+            if events[2].is_set():
+                print('piezo stopped by approach 1')
+                break
+            print(f'Moved Piezo by {i}')
+            i+=1
+            time.sleep(1)
+            if events[2].is_set():
+                print('piezo stopped by approach 2')
+                break
+
         events[0].set()
         events[1].clear()
 
-
         if events[2].is_set():
-            print('Piezo Stopped!')
+            print('piezo stopped by approach 3')
             break
 
-  
+        print('Resetting piezo and Zstage')
+        print('Should not print if stopped!')
+        
+    print('print?')
+        
+
 if __name__ == '__main__':
 
 

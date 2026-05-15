@@ -4,10 +4,10 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit
                                QVBoxLayout, QComboBox, QFrame, QApplication, QMessageBox, QStackedWidget,
                                QPushButton, QPlainTextEdit)
 
-from Settings.OCP_Settings import OCPset
-from Settings.CA_Settings import CAset
-from Settings.CP_Settings import CPset
-from Settings.CV_Settings import CVset
+from EchemSettings.OCP_Settings import OCPset
+from EchemSettings.CA_Settings import CAset
+from EchemSettings.CP_Settings import CPset
+from EchemSettings.CV_Settings import CVset
 
 
 class TechSettings(QWidget):

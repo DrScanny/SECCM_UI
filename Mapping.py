@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit
                                QVBoxLayout, QComboBox, QFrame, QApplication, QMessageBox, QStackedWidget,
                                QPushButton, QHBoxLayout, QPlainTextEdit, QGroupBox)
 
-import SECCM_Settings
+import UI_Settings
 from pipython import GCSDevice, datarectools, pitools
 
 def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
@@ -24,13 +24,13 @@ def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
             else:
                 layout.addWidget(widget, line,col)
 
-def _mapLandings(settings: SECCM_Settings.MapSettings):
+def _mapLandings(settings: UI_Settings.Map):
     Xlandings= np.arange(0, settings.dX*settings.nX, settings.nX )
     Ylandings= np.arange(0, settings.dY*settings.nY, settings.nY )
 
 def _update_att(value, att)-> None:
      att= value
-     print(value)
+     print(att, value)
 
 sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 sizePolicy.setHorizontalStretch(0)
@@ -51,10 +51,9 @@ class Mapping(QWidget):
         self.layoutWidget.addWidget(self.frameMain)
         self.frameMain.setSizePolicy(sizePolicy)
 
-
-        self.settingsStage= SECCM_Settings.StageSettings()
-        self.settingsMap= SECCM_Settings.MapSettings()
-        self.settingsApproach= SECCM_Settings.ApproachSettings()
+        self.settingsStage= UI_Settings.Stage()
+        self.settingsMap= UI_Settings.Map()
+        self.settingsApproach= UI_Settings.SECCM()
         
         self.widgetPos()
         self.widgetMapping()
@@ -64,57 +63,82 @@ class Mapping(QWidget):
     
     def widgetPos(self):
       
-        self.groupStage= QGroupBox('Stage Control'); self.groupStage.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
+        self.groupStage= QGroupBox('Positioners movement'); self.groupStage.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         #self.framePosition.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
         self.layoutPosition= QGridLayout(self.groupStage)
         self.layoutMain.addWidget(self.groupStage)
+
+        self.sepPositionSection1= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection1,0,0,1,5) 
+        self.sepPositionSection1.setFrameShape(QFrame.Shape.HLine)
+        self.sepPositionSection1.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.labelPiezo= QLabel("Stages"); self.layoutPosition.addWidget(self.labelPiezo,1,0,1,1); self.labelPiezo.setStyleSheet("font-weight: bold;")
+        self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,2,0,1,5) 
+        self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
+        self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
     
         self.labelMove= QLabel('Move'); self.layoutPosition.addWidget(self.labelMove, 3,0)
         self.labelMove.setToolTip("Move the positionner in X, Y axis by up to (-)99 999 \u03bcm at a time and the Z axis by up to (-)1 000 \u03bcm ")
 
-        self.labelPosition= QLabel('Position'); self.layoutPosition.addWidget(self.labelPosition, 4,0)
+        self.labelPosition= QLabel('Current'); self.layoutPosition.addWidget(self.labelPosition, 4,0)
         self.labelPosition.setToolTip("Indicate the current absolute position in X, Y, Z axis")
 
         self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 5,0)
         self.labelMax.setToolTip("Indicate the stage limits in X, Y, Z axis")
 
-        self.labelX= QLabel('X'); self.layoutPosition.addWidget(self.labelX, 2,1)
+        self.labelX= QLabel('X'); self.layoutPosition.addWidget(self.labelX, 1,1); self.labelX.setStyleSheet("font-weight: bold;")
         self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.lineXmove= QLineEdit(); self.layoutPosition.addWidget(self.lineXmove, 3,1)
         self.lineXmove.setText('0')
         self.lineXmove.setValidator(QIntValidator(-99999, 99999))
 
-        self.labelXpos= QLabel('Xpos');  self.layoutPosition.addWidget(self.labelXpos, 4,1)
+        self.labelXpos= QLabel('0 \u03bcm');  self.layoutPosition.addWidget(self.labelXpos, 4,1)
         self.labelXmax= QLabel('X');  self.layoutPosition.addWidget(self.labelXmax, 5,1)
 
-        self.labelY= QLabel('Y');  self.layoutPosition.addWidget(self.labelY, 2,2)
+        self.labelY= QLabel('Y');  self.layoutPosition.addWidget(self.labelY, 1,2); self.labelY.setStyleSheet("font-weight: bold;")
         self.labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.lineYmove= QLineEdit();  self.layoutPosition.addWidget(self.lineYmove, 3,2)
         self.lineYmove.setText('0')
         self.lineYmove.setValidator(QIntValidator(-99999, 99999))
 
-        self.labelYpos= QLabel('Ypos'); self.layoutPosition.addWidget(self.labelYpos, 4,2)
+        self.labelYpos= QLabel('0 \u03bcm'); self.layoutPosition.addWidget(self.labelYpos, 4,2)
         self.labelYmax= QLabel('Y'); self.layoutPosition.addWidget(self.labelYmax, 5,2)
 
-        self.labelZ= QLabel('Z');  self.layoutPosition.addWidget(self.labelZ, 2,3)
+        self.labelZ= QLabel('Z');  self.layoutPosition.addWidget(self.labelZ, 1,3); self.labelZ.setStyleSheet("font-weight: bold;")
         self.labelZ.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.lineZmove= QLineEdit(); self.layoutPosition.addWidget(self.lineZmove, 3,3)
         self.lineZmove.setText('0')
         self.lineXmove.setValidator(QIntValidator(-1000, 1000))
     
-        self.labelZpos= QLabel('Zpos');  self.layoutPosition.addWidget(self.labelZpos, 4,3)
+        self.labelZpos= QLabel('0 \u03bcm');  self.layoutPosition.addWidget(self.labelZpos, 4,3)
         self.labelZmax= QLabel('Z');  self.layoutPosition.addWidget(self.labelZmax, 5,3)
 
-        self.sepPositionSection= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection,6,0,1,5) 
-        self.sepPositionSection.setFrameShape(QFrame.Shape.HLine)
-        self.sepPositionSection.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,7,0,1,2)
-        self.buttonStop= QPushButton('Stop'); self.layoutPosition.addWidget(self.buttonStop,7,2,1,2)
-        #self.buttonMove.clicked.connect()
+        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,6,0,1,2)
+        self.buttonStop= QPushButton('Stop'); self.layoutPosition.addWidget(self.buttonStop,6,2,1,2)
+
+        self.labelPiezo= QLabel("Piezo"); self.layoutPosition.addWidget(self.labelPiezo,8,0,1,2); self.labelPiezo.setStyleSheet("font-weight: bold;")
+        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,7,0,1,5) 
+        self.sepPositionSection3.setFrameShape(QFrame.Shape.HLine)
+        self.sepPositionSection3.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.labelPiezoMove= QLabel('Move'); self.layoutPosition.addWidget(self.labelPiezoMove,11,0)
+        self.labelPiezoPos= QLabel('Current'); self.layoutPosition.addWidget(self.labelPiezoPos,12,0)
+        self.labelPiezoMax= QLabel('Limit'); self.layoutPosition.addWidget(self.labelPiezoMax,13,0)
+
+        self.sepPositionSection4= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection4,10,0,1,5) 
+        self.sepPositionSection4.setFrameShape(QFrame.Shape.HLine) 
+        self.sepPositionSection4.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.linePiezo= QLineEdit(); self.layoutPosition.addWidget(self.linePiezo, 11,1) 
+        self.labelPiezoPosValue= QLabel('0 \u03bcm'); self.layoutPosition.addWidget(self.labelPiezoPosValue, 12,1) 
+        self.linePiezoMaxValue= QLabel('60 \u03bcm'); self.layoutPosition.addWidget(self.linePiezoMaxValue, 13,1) 
+
+        self.buttonPiezoMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonPiezoMove,11,2,1,2)
+        self.buttonPiezoRelease= QPushButton('Release'); self.layoutPosition.addWidget(self.buttonPiezoRelease,12,2,1,2)
 
         self.lineXmove.editingFinished.connect(lambda: _update_att(int(self.lineXmove.text()), self.settingsStage.moveX))
         self.lineYmove.editingFinished.connect(lambda: _update_att(int(self.lineYmove.text()), self.settingsStage.moveY))
@@ -151,23 +175,23 @@ class Mapping(QWidget):
         self.lineYlandings.setValidator(QIntValidator(0, 100))
 
         self.labelPattern= QLabel('Map Pattern'); self.layoutMapSize.addWidget(self.labelPattern,3,0)
-        self.labelPattern.setToolTip('Set the mapping pattern: \n-Snake: Directly move in Y at the end of the line \n-Straight: Return to initial X position before moving in Y')
+        self.labelPattern.setToolTip('Set the mapping pattern: \n-Snake: Change line at the position of the last measurement \n-Straight: Return to initial position before changing line')
 
         self.comboPattern= QComboBox(); self.layoutMapSize.addWidget(self.comboPattern,3,1,1,2)
         self.comboPattern.addItems(['Snake', 'Straight'])
         self.comboPattern.currentIndexChanged.connect(lambda: _update_att(self.comboPattern.currentText(), self.settingsMap.pattern))
 
         self.labelMethod= QLabel('Method'); self.layoutMapSize.addWidget(self.labelMethod, 4,0)
-        self.labelMethod.setToolTip(('Select the Mapping Method \nNo Map: No mapping, direct echem measurement \nSECCM Hopping: Mapping in SECCM by approaching tip \nSECM Hopping: Mapping in SECM using approach curves \nConstant Distance: Mapping with the tip kept at a constant distance'))
+        self.labelMethod.setToolTip(('Select the Mapping Method \nNo Map: Echem measurement only \nSECCM: Mapping using SECCM \nSECM: Mapping or approach curves in SECM '))
 
         self.comboMap= QComboBox(); self.layoutMapSize.addWidget(self.comboMap, 4,1,1,2)
         self.comboMap.setToolTip('Select the Mapping Method \nNo Map: No mapping, direct echem measurement \nSECCM Hopping: Mapping in SECCM by approaching tip \nSECM Hopping: Mapping in SECM using approach curves \nConstant Distance: Mapping with the tip kept at a constant distance')
-        self.comboMap.addItem('No MAP')
-        self.comboMap.addItem('SECCM Hopping')
-        self.comboMap.addItem('SECM Hopping')
-        self.comboMap.addItem('SECM Constant Distance')
-        self.comboMap.setCurrentIndex(1)
+        self.comboMap.addItem('None')
+        self.comboMap.addItem('SECCM')
+        self.comboMap.addItem('SECM')
+        self.comboMap.setCurrentIndex(0)
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
+        self.comboMap.currentIndexChanged.connect(lambda: self.groupApproach.setTitle(f'{self.comboMap.currentText()} Settings'))
         self.comboMap.currentIndexChanged.connect(lambda: _update_att(self.comboMap.currentText(), self.settingsMap.mode))
     
         self.lineXdistance.editingFinished.connect(lambda: _update_att(int(self.lineXdistance.text()), self.settingsMap.dX))
@@ -179,10 +203,10 @@ class Mapping(QWidget):
 
         self.stackMap= QStackedWidget()
         self.layoutMain.addWidget(self.stackMap)
-        self.labelDefault= QLabel('No Mapping: Direct measurement')
+        self.labelDefault= QLabel()
         self.stackMap.addWidget(self.labelDefault)
         self.stackMap.addWidget(self.widgetHopping())
-        self.stackMap.setCurrentIndex(1)
+        self.stackMap.setCurrentIndex(0)
 
     def widgetHopping(self):
         self.groupApproach= QGroupBox('Approach Settings'); self.groupApproach.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
