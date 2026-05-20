@@ -16,10 +16,26 @@ from TechSettings import TechSettings
 from Device import Device
 from Approach import approachSECCM
 import UI_Settings
+from pipython import GCSDevice, datarectools, pitools
 
 """
 Main file for the SECCM software
 """
+
+def moveStage(XYstage, Zstage):
+    if XYstage.IsConnected():
+        XYstage.VEL({1:10, 2:10})
+        XYstage.MVR({1:UI_Settings.Stage.moveX, 2:UI_Settings.Stage.moveY})
+        pitools.waitontarget(XYstage)
+        UI_Settings.Stage.posX, UI_Settings.Stage.posY= XYstage.qPOS()
+
+    if Zstage.IsConnected():
+        Zstage.VEL(1)
+        Zstage.MVR(UI_Settings.Stage.moveZ)
+        pitools.waitontarget(Zstage)
+        UI_Settings.Stage.posZ= Zstage.qPOS()
+
+        print(f'Stage moved to {XYstage.qPOS()}{Zstage.qPOS()}')
 
 class ConsoleStream(QObject):
     text_written= Signal(str)
@@ -104,6 +120,8 @@ class Main(QMainWindow):
         #endregion
 
         #Signal and event
+        self.mapping.buttonMove.clicked.connect(lambda: moveStage(self.devices.XYstage, self.devices.Zstage))
+
         self.experiments.list.itemDoubleClicked.connect(self.Main_AddTechnique)
         self.experiments.addButton.clicked.connect(self.Main_AddTechnique)
         self.experiments.tree.itemClicked.connect(self.Main_ChangeSettingsPage)

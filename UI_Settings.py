@@ -5,9 +5,12 @@ class Stage():
     moveX: int= 0 #Distance to move olympus stage in X position can take negative values
     moveY: int= 0 #Distance to move olympus stage in Y position can take negative values
     moveZ: int= 0 #Distance to move olympus stage in Z position can take negative values
-    posX: int= 0 #Current Absolute position in X can take negative values
-    posY: int= 0 #Current Absolute position in Y can take negative values
-    posZ: int= 0 #Current Absolute position in Z can take negative values
+    relX: int= 0 #Current Absolute position in X can take negative values
+    relY: int= 0 #Current Absolute position in Y can take negative values
+    relZ: int= 0 #Current Absolute position in Z can take negative values
+    absX: int= 0 #Current Absolute position in X can take negative values
+    absY: int= 0 #Current Absolute position in Y can take negative values
+    absZ: int= 0 #Current Absolute position in Z can take negative values
 
 @dataclass
 class Map():

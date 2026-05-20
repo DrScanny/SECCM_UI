@@ -8,7 +8,9 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit
                                QPushButton, QHBoxLayout, QPlainTextEdit, QGroupBox)
 
 import UI_Settings
+import Device
 from pipython import GCSDevice, datarectools, pitools
+
 
 def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
      for line, widgetsInLine in enumerate(widgetsList):
@@ -35,6 +37,9 @@ def _update_att(value, att)-> None:
 sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
 sizePolicy.setHorizontalStretch(0)
 sizePolicy.setVerticalStretch(0)
+
+def PImoveStage(coordinates: list[float]):
+     pass
 
 class Mapping(QWidget):
       
@@ -72,73 +77,56 @@ class Mapping(QWidget):
         self.sepPositionSection1.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection1.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.labelPiezo= QLabel("Stages"); self.layoutPosition.addWidget(self.labelPiezo,1,0,1,1); self.labelPiezo.setStyleSheet("font-weight: bold;")
+        self.labelX= QLabel('X'); self.layoutPosition.addWidget(self.labelX, 1,1); self.labelX.setStyleSheet("font-weight: bold;")
+        self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelY= QLabel('Y');  self.layoutPosition.addWidget(self.labelY, 1,2); self.labelY.setStyleSheet("font-weight: bold;")
+        self.labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelZ= QLabel('Z');  self.layoutPosition.addWidget(self.labelZ, 1,3); self.labelZ.setStyleSheet("font-weight: bold;")
+        self.labelZ.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelPiezo= QLabel('Piezo');  self.layoutPosition.addWidget(self.labelPiezo, 1,4); self.labelPiezo.setStyleSheet("font-weight: bold;")
+        self.labelPiezo.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+
         self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,2,0,1,5) 
         self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
     
         self.labelMove= QLabel('Move'); self.layoutPosition.addWidget(self.labelMove, 3,0)
-        self.labelMove.setToolTip("Move the positionner in X, Y axis by up to (-)99 999 \u03bcm at a time and the Z axis by up to (-)1 000 \u03bcm ")
-
-        self.labelPosition= QLabel('Current'); self.layoutPosition.addWidget(self.labelPosition, 4,0)
-        self.labelPosition.setToolTip("Indicate the current absolute position in X, Y, Z axis")
-
-        self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 5,0)
-        self.labelMax.setToolTip("Indicate the stage limits in X, Y, Z axis")
-
-        self.labelX= QLabel('X'); self.layoutPosition.addWidget(self.labelX, 1,1); self.labelX.setStyleSheet("font-weight: bold;")
-        self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
-
+        self.labelMove.setToolTip("Move the positionner in X, Y axis relative to the current reference. The X and Y can be moved by up to (-)99 999 \u03bcm at a time and the Z axis by up to (-)1 000 \u03bcm ")
+        
         self.lineXmove= QLineEdit(); self.layoutPosition.addWidget(self.lineXmove, 3,1)
         self.lineXmove.setText('0')
-        self.lineXmove.setValidator(QIntValidator(-99999, 99999))
-
-        self.labelXpos= QLabel('0 \u03bcm');  self.layoutPosition.addWidget(self.labelXpos, 4,1)
-        self.labelXmax= QLabel('X');  self.layoutPosition.addWidget(self.labelXmax, 5,1)
-
-        self.labelY= QLabel('Y');  self.layoutPosition.addWidget(self.labelY, 1,2); self.labelY.setStyleSheet("font-weight: bold;")
-        self.labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
-
+        self.lineXmove.setValidator(QDoubleValidator(-65, 65, 3))
+        
         self.lineYmove= QLineEdit();  self.layoutPosition.addWidget(self.lineYmove, 3,2)
         self.lineYmove.setText('0')
-        self.lineYmove.setValidator(QIntValidator(-99999, 99999))
-
-        self.labelYpos= QLabel('0 \u03bcm'); self.layoutPosition.addWidget(self.labelYpos, 4,2)
-        self.labelYmax= QLabel('Y'); self.layoutPosition.addWidget(self.labelYmax, 5,2)
-
-        self.labelZ= QLabel('Z');  self.layoutPosition.addWidget(self.labelZ, 1,3); self.labelZ.setStyleSheet("font-weight: bold;")
-        self.labelZ.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.lineYmove.setValidator(QDoubleValidator(-65, 65, 3))
 
         self.lineZmove= QLineEdit(); self.layoutPosition.addWidget(self.lineZmove, 3,3)
         self.lineZmove.setText('0')
-        self.lineXmove.setValidator(QIntValidator(-1000, 1000))
-    
-        self.labelZpos= QLabel('0 \u03bcm');  self.layoutPosition.addWidget(self.labelZpos, 4,3)
-        self.labelZmax= QLabel('Z');  self.layoutPosition.addWidget(self.labelZmax, 5,3)
+        self.lineXmove.setValidator(QDoubleValidator(0, 25, 3))
+        
+        self.linePiezo= QLineEdit(); self.layoutPosition.addWidget(self.linePiezo, 3,4) 
+        self.linePiezo.setText('0')
+        self.linePiezo.setValidator(QDoubleValidator(0, 60, 3))
+   
+        self.labelPosition= QLabel('Position'); self.layoutPosition.addWidget(self.labelPosition, 5,0)
+        self.labelPosition.setToolTip("Indicate the position in X, Y, Z axis relative to the positioner reference")
+        self.labelXpos= QLabel('0 mm');  self.layoutPosition.addWidget(self.labelXpos, 5,1)
+        self.labelYpos= QLabel('0 mm'); self.layoutPosition.addWidget(self.labelYpos, 5,2)
+        self.labelZpos= QLabel('0 mm');  self.layoutPosition.addWidget(self.labelZpos, 5,3)
+        self.labelPiezoPosValue= QLabel('0 \u03bcm'); self.layoutPosition.addWidget(self.labelPiezoPosValue, 5,4) 
+       
+        self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 6,0)
+        self.labelMax.setToolTip("Indicate the stage limits in X, Y, Z axis")
+        self.labelXmax= QLabel('\u00B165 mm');  self.layoutPosition.addWidget(self.labelXmax, 6,1)
+        self.labelYmax= QLabel('\u00B165 mm'); self.layoutPosition.addWidget(self.labelYmax, 6,2)
+        self.labelZmax= QLabel('25 mm');  self.layoutPosition.addWidget(self.labelZmax, 6,3)
+        self.linePiezoMaxValue= QLabel('60 \u03bcm'); self.layoutPosition.addWidget(self.linePiezoMaxValue, 6,4) 
 
 
-        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,6,0,1,2)
-        self.buttonStop= QPushButton('Stop'); self.layoutPosition.addWidget(self.buttonStop,6,2,1,2)
 
-        self.labelPiezo= QLabel("Piezo"); self.layoutPosition.addWidget(self.labelPiezo,8,0,1,2); self.labelPiezo.setStyleSheet("font-weight: bold;")
-        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,7,0,1,5) 
-        self.sepPositionSection3.setFrameShape(QFrame.Shape.HLine)
-        self.sepPositionSection3.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.labelPiezoMove= QLabel('Move'); self.layoutPosition.addWidget(self.labelPiezoMove,11,0)
-        self.labelPiezoPos= QLabel('Current'); self.layoutPosition.addWidget(self.labelPiezoPos,12,0)
-        self.labelPiezoMax= QLabel('Limit'); self.layoutPosition.addWidget(self.labelPiezoMax,13,0)
-
-        self.sepPositionSection4= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection4,10,0,1,5) 
-        self.sepPositionSection4.setFrameShape(QFrame.Shape.HLine) 
-        self.sepPositionSection4.setFrameShadow(QFrame.Shadow.Sunken)
-
-        self.linePiezo= QLineEdit(); self.layoutPosition.addWidget(self.linePiezo, 11,1) 
-        self.labelPiezoPosValue= QLabel('0 \u03bcm'); self.layoutPosition.addWidget(self.labelPiezoPosValue, 12,1) 
-        self.linePiezoMaxValue= QLabel('60 \u03bcm'); self.layoutPosition.addWidget(self.linePiezoMaxValue, 13,1) 
-
-        self.buttonPiezoMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonPiezoMove,11,2,1,2)
-        self.buttonPiezoRelease= QPushButton('Release'); self.layoutPosition.addWidget(self.buttonPiezoRelease,12,2,1,2)
+        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,7,0,1,2)
+        self.buttonStop= QPushButton('Save Position'); self.layoutPosition.addWidget(self.buttonStop,7,2,1,2)
 
         self.lineXmove.editingFinished.connect(lambda: _update_att(int(self.lineXmove.text()), self.settingsStage.moveX))
         self.lineYmove.editingFinished.connect(lambda: _update_att(int(self.lineYmove.text()), self.settingsStage.moveY))
