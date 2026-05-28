@@ -48,11 +48,16 @@ class ExpLoad(QWidget):
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tree.setDropIndicatorShown(False)
         self.tree.setDragDropOverwriteMode(False)
+
+        self.layoutChButton= QHBoxLayout(); self.layoutLoadout.addLayout(self.layoutChButton)
+        self.buttonStart= QPushButton("Start"); self.layoutChButton.addWidget(self.buttonStart)
+        self.buttonStop= QPushButton("Stop"); self.layoutChButton.addWidget(self.buttonStop)
      
         #endregion -----------------------------------------------------------------------------------------------------------------------------------------------------
 
         #region: Start Experiment section ------------------------------------------------------------------------------------------------------------------------------
-        self.groupStart= QGroupBox ("Channels"); self.groupStart.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
+        """
+        self.groupStart= QGroupBox ("Channels"); 
         self.groupStart.setToolTip('Select Potentiostat channel to perform experiment')
         self.layoutStart= QVBoxLayout()
         self.groupStart.setLayout(self.layoutStart)
@@ -61,6 +66,7 @@ class ExpLoad(QWidget):
         self.layoutChButton= QHBoxLayout(); self.layoutStart.addLayout(self.layoutChButton)
         self.buttonStart= QPushButton("Start"); self.layoutChButton.addWidget(self.buttonStart)
         self.buttonStop= QPushButton("Stop"); self.layoutChButton.addWidget(self.buttonStop)
+        """
         #endregion ---------------------------------------------------------------------------------------------------------------------------------------------------------
 
     

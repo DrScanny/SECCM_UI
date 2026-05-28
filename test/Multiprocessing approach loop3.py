@@ -26,9 +26,7 @@ def simPot(tech:str, events:list[Any]):
             
             if stopTrigger==3:
                 print("Stop Trigger Activated!")
-                time.sleep(1)
-                events[2].set()
-                break
+                return True
 
             if events[0].is_set():
                 print('Piezo reached limit. Relaxing')
@@ -41,31 +39,21 @@ def simPot(tech:str, events:list[Any]):
 
 def simPiezo(totalTime:int, events:list[Any]):
 
-    while not events[2].is_set():
+    while True:
         events[1].wait()
         i=1
         while i<totalTime+1:
-            if events[2].is_set():
-                print('piezo stopped by approach 1')
-                break
             print(f'Moved Piezo by {i}')
             i+=1
             time.sleep(1)
             if events[2].is_set():
-                print('piezo stopped by approach 2')
-                break
+                print('piezo stopped by approach')
+                return False
 
         events[0].set()
         events[1].clear()
 
-        if events[2].is_set():
-            print('piezo stopped by approach 3')
-            break
-
         print('Resetting piezo and Zstage')
-        print('Should not print if stopped!')
-        
-    print('print?')
         
 
 if __name__ == '__main__':

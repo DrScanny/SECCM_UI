@@ -10,14 +10,6 @@ from PySide6.QtWidgets import  (QApplication, QComboBox, QFrame, QGridLayout, QH
                                 QLabel, QLayout, QVBoxLayout,  QLineEdit, QSizePolicy, QWidget, QSpacerItem)
 import UI_Settings
 
-#region: Helper functions: , update_att, addWidgetsGrid
-
-def _update_att(value, att)-> None:
-        att= value
-        print(att)
-
-#endregion
-
 class CVset(QWidget):
 
     def __init__(self):
@@ -149,17 +141,17 @@ class CVset(QWidget):
         self.frameLayout.addStretch()
 
     def update_fields(self): #Signals to update attribute as widgets are edited
-        self.eiLine.editingFinished.connect(lambda: _update_att(float(self.eiLine.text()), self.settings.ei))
-        self.e1Line.editingFinished.connect(lambda: _update_att(float(self.e1Line.text()), self.settings.e1))
-        self.e2Line.editingFinished.connect(lambda: _update_att(float(self.e2Line.text()), self.settings.e2))
-        self.efLine.editingFinished.connect(lambda: _update_att(float(self.efLine.text()), self.settings.ef))
+        self.eiLine.editingFinished.connect(lambda: setattr(self.settings, 'ei', float(self.eiLine.text())))
+        self.e1Line.editingFinished.connect(lambda: setattr(self.settings, 'e1', float(self.e1Line.text())))
+        self.e2Line.editingFinished.connect(lambda: setattr(self.settings, 'e2', float(self.e2Line.text())))
+        self.efLine.editingFinished.connect(lambda: setattr(self.settings, 'ef', float(self.efLine.text())))
 
-        self.scanLine.editingFinished.connect(lambda: _update_att(float(self.scanLine.text()), self.settings.scanRate))
-        self.cycleLine.editingFinished.connect(lambda: _update_att(int(self.cycleLine.text()), self.settings.cycle))
+        self.scanLine.editingFinished.connect(lambda: setattr(self.settings, 'scanRate', float(self.scanLine.text())))
+        self.cycleLine.editingFinished.connect(lambda: setattr(self.settings, 'cycle', int(self.cycleLine.text())))
 
-        self.iRangeCombo.currentTextChanged.connect(lambda: _update_att(self.iRangeCombo.currentData(), self.settings.iRange))
-        self.eRangeCombo.currentTextChanged.connect(lambda: _update_att(self.eRangeCombo.currentData(), self.settings.eRange))
-        self.bandwithCombo.currentTextChanged.connect(lambda: _update_att(int(self.bandwithCombo.currentText()), self.settings.bandwith))
+        self.iRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'iRange', self.iRangeCombo.currentData()))
+        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRange', self.eRangeCombo.currentData()))
+        self.bandwithCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'bandwith', int(self.bandwithCombo.currentText())))
 
 if __name__ == '__main__':
     app= QApplication([])

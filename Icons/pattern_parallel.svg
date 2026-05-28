@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="24.666908mm"
+   height="21.090157mm"
+   viewBox="0 0 24.666908 21.090157"
+   version="1.1"
+   id="svg5"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2">
+    <marker
+       style="overflow:visible"
+       id="marker1121"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="5"
+       markerHeight="3.6363637"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path1119" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="7.6999998"
+       markerHeight="5.5999999"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="arrow2L" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2-1"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="7.6999998"
+       markerHeight="5.5999999"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="arrow2L-7" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker1121-7"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="5"
+       markerHeight="3.6363637"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path1119-9" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2-4"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="7.6999998"
+       markerHeight="5.5999999"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="arrow2L-3" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker1121-2"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="5"
+       markerHeight="3.6363637"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path1119-3" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2-4-1"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="7.6999998"
+       markerHeight="5.5999999"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="arrow2L-3-5" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker1121-2-1"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="5"
+       markerHeight="3.6363637"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path1119-3-4" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow2-4-1-2"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="7.6999998"
+       markerHeight="5.5999999"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="arrow2L-3-5-0" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker1121-2-1-6"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="5"
+       markerHeight="3.6363637"
+       viewBox="0 0 7.7 5.6"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path1119-3-4-1" />
+    </marker>
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-73.914194,-58.89794)">
+    <path
+       style="fill:#000000;stroke:#000000;stroke-width:0.813;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#Arrow2);marker-end:url(#marker1121)"
+       d="m 73.914201,78.509907 c 21.340989,0 21.340989,0 21.340989,0"
+       id="path113" />
+    <path
+       style="fill:#000000;stroke:#000000;stroke-width:0.813;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#Arrow2-4);marker-end:url(#marker1121-2)"
+       d="m 73.9142,69.443015 c 21.34099,0 21.34099,0 21.34099,0"
+       id="path113-9" />
+    <path
+       style="fill:#000000;stroke:#000000;stroke-width:0.813;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#Arrow2-4-1);marker-end:url(#marker1121-2-1)"
+       d="m 73.914201,64.909568 c 21.340989,0 21.340989,0 21.340989,0"
+       id="path113-9-5" />
+    <path
+       style="fill:#000000;stroke:#000000;stroke-width:0.813;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#Arrow2-4-1-2);marker-end:url(#marker1121-2-1-6)"
+       d="m 73.914203,60.376122 c 21.340982,0 21.340982,0 21.340982,0"
+       id="path113-9-5-8" />
+    <path
+       style="fill:#000000;stroke:#000000;stroke-width:0.813;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-mid:url(#Arrow2-1);marker-end:url(#marker1121-7)"
+       d="m 73.914199,73.976461 c 21.340991,0 21.340991,0 21.340991,0"
+       id="path113-5" />
+  </g>
+</svg>

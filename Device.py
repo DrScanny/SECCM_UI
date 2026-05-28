@@ -10,10 +10,12 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGr
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
                                QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
                                QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
-                               QTreeWidget, QLineEdit, QGridLayout)
+                               QTreeWidget, QLineEdit, QGridLayout, QGroupBox)
 
 from Biologic import Biologic
-from pipython import GCSDevice, datarectools, pitools
+import UI_Settings
+from PI import PI
+
 
 def handle_errors(func):
     @functools.wraps(func)
@@ -25,77 +27,95 @@ def handle_errors(func):
             return None  # Or a custom default response
     return wrapper
 
+def _Vline(layout):
+    line = QFrame()
+    line.setFrameShape(QFrame.Shape.VLine)
+    line.setFrameShadow(QFrame.Shadow.Sunken)
+    layout.addWidget(line)
 
+def _LabelStyle(label:QLabel, state:bool):
+    if state== False:
+        label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        label.setStyleSheet("background-color: #ff0000;")
+
+    if state== True:
+        label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Raised)
+        label.setStyleSheet("background-color: #00FF00;")
+
+    
 class Device(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.layoutWidget= QVBoxLayout(); self.setLayout(self.layoutWidget)
-        self.treeDevices= QTreeWidget(); self.layoutWidget.addWidget(self.treeDevices)
-        self.treeDevices.setHeaderLabels(["Device", "Status"])
-
         self.potentiostat= Biologic()
-        self.piezo= GCSDevice()
-        self.Zstage= GCSDevice()
-        self.XYstage= GCSDevice()
+        self.positioner= PI()
 
-        self.treeItem_potentiostat= QTreeWidgetItem(["VMP-300", "    \U0001F534"]); self.treeDevices.addTopLevelItem(self.treeItem_potentiostat) 
-        self.treeItem_piezo= QTreeWidgetItem(["Nanocube","    \U0001F534"]); self.treeDevices.addTopLevelItem(self.treeItem_piezo) 
-        self.treeItem_Zstage= QTreeWidgetItem(["Mercury", "    \U0001F534"]); self.treeDevices.addTopLevelItem(self.treeItem_Zstage) 
-        self.treeItem_XYstage= QTreeWidgetItem(["Olympus", "    \U0001F534"]); self.treeDevices.addTopLevelItem(self.treeItem_XYstage) 
+        self.potentiostatIP= '192.168.2.2'
+        self.piezoSerial= '0125021719'
+        self.Zserial= '0026550002'
+        self.XYserial='0125076674'
 
-        self.potentiostatIP= QTreeWidgetItem(self.treeItem_potentiostat); self.potentiostatIP.setFlags(self.potentiostatIP.flags() | Qt.ItemFlag.ItemIsEditable)
-        self.piezoSerial= QTreeWidgetItem(self.treeItem_piezo); self.piezoSerial.setFlags(self.piezoSerial.flags() | Qt.ItemFlag.ItemIsEditable)
-        self.Zserial= QTreeWidgetItem(self.treeItem_Zstage); self.Zserial.setFlags(self.Zserial.flags() | Qt.ItemFlag.ItemIsEditable)
-        self.XYserial= QTreeWidgetItem(self.treeItem_XYstage); self.XYserial.setFlags(self.XYserial.flags() | Qt.ItemFlag.ItemIsEditable)
+        self.layoutWidget= QHBoxLayout(); self.setLayout(self.layoutWidget)
+        self.frame= QFrame(); self.layoutWidget.addWidget(self.frame)
+        self.frame.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Raised)
+        self.layoutDevice= QHBoxLayout(self.frame)
 
-        self.potentiostatIP.setText(0, '192.168.2.2')
-        self.piezoSerial.setText(0, '0125021719')
-        self.Zserial.setText(0, '0026550002')
-        self.XYserial.setText(0, '0125076674')
+        self.buttonConnectAll= QPushButton('Connect All'); self.layoutDevice.addWidget(self.buttonConnectAll)
+        self.buttonConnectAll.clicked.connect(self.connectAll)
 
-        self.buttonConnectPot= QPushButton('Connect'); self.treeDevices.setItemWidget(self.potentiostatIP, 1, self.buttonConnectPot)
-        self.buttonConnectPot.clicked.connect(lambda: self.connectDevices(0))
-        self.buttonConnectPiezo= QPushButton('Connect'); self.treeDevices.setItemWidget(self.piezoSerial, 1, self.buttonConnectPiezo)
-        self.buttonConnectPiezo.clicked.connect(lambda: self.connectDevices(1))
-        self.buttonConnectZ= QPushButton('Connect'); self.treeDevices.setItemWidget(self.Zserial, 1, self.buttonConnectZ)
-        self.buttonConnectZ.clicked.connect(lambda: self.connectDevices(2))
-        self.buttonConnectXY= QPushButton('Connect'); self.treeDevices.setItemWidget(self.XYserial, 1, self.buttonConnectXY)
-        self.buttonConnectXY.clicked.connect(lambda: self.connectDevices(3))
- 
-        self.potentiostat= Biologic()
-        self.piezo= GCSDevice()
-        self.Zstage= GCSDevice()
-        self.XYstage= GCSDevice()
+        _Vline(self.layoutDevice)
 
-    def connectDevices(self, device:int):
-        address= self.treeDevices.topLevelItem(device).child(0).text(0)
-        connected= False
+        self.layoutPotentiostat= QVBoxLayout(); self.layoutDevice.addLayout(self.layoutPotentiostat)
+        self.buttonConnectPot= QPushButton('Potentiostat'); self.layoutPotentiostat.addWidget(self.buttonConnectPot)
+        self.buttonConnectPot.clicked.connect(lambda: self.connectDevices(self.labelPot, self.potentiostatIP, 'Pot'))
+        self.labelPot= QLabel('   '); self.layoutPotentiostat.addWidget(self.labelPot)
+        _LabelStyle(self.labelPot, False)
+
+        _Vline(self.layoutDevice)
+
+        self.layoutPiezo= QVBoxLayout(); self.layoutDevice.addLayout(self.layoutPiezo)
+        self.buttonConnectPiezo= QPushButton('Piezo'); self.layoutPiezo.addWidget(self.buttonConnectPiezo)
+        self.buttonConnectPiezo.clicked.connect(lambda: self.connectDevices(self.labelPiezo, self.piezoSerial, 'Pz'))
+        self.labelPiezo= QLabel('   '); self.layoutPiezo.addWidget(self.labelPiezo)
+        _LabelStyle(self.labelPiezo, False)
+
+        _Vline(self.layoutDevice)
+
+        self.layoutZstage= QVBoxLayout(); self.layoutDevice.addLayout(self.layoutZstage)
+        self.buttonConnectZstage= QPushButton('Z-stage'); self.layoutZstage.addWidget(self.buttonConnectZstage)
+        self.buttonConnectZstage.clicked.connect(lambda: self.connectDevices(self.labelZstage, self.Zserial, 'Z'))
+        self.labelZstage= QLabel('   '); self.layoutZstage.addWidget(self.labelZstage)
+        _LabelStyle(self.labelZstage, False)
+
+        _Vline(self.layoutDevice)
+
+        self.layoutXYstage= QVBoxLayout(); self.layoutDevice.addLayout(self.layoutXYstage)
+        self.buttonConnectXYstage= QPushButton('XY-stage'); self.layoutXYstage.addWidget(self.buttonConnectXYstage)
+        self.buttonConnectXYstage.clicked.connect(lambda: self.connectDevices(self.labelXYstage, self.XYserial, 'XY'))
+        self.labelXYstage= QLabel('   '); self.layoutXYstage.addWidget(self.labelXYstage)
+        _LabelStyle(self.labelXYstage, False)
      
-        match device:
-            case 0:
-                self.potentiostat.connect(ip_address= address)
 
-            case 1:
-                self.piezo.ConnectUSB(address)
-                if self.piezo.connected():
-                    connected= True
-                 
-            case 2:
-                self.Zstage.ConnectUSB(address)
-                if self.piezo.connected():
-                    connected= True
+    def connectDevices(self, label:QLabel, address:str, type:str):
 
-            case 3:
-                self.XYstage.ConnectUSB(address)
-                if self.piezo.connected():
-                    connected= True
+        connectionStatus= False
 
-        if connected:
-            self.treeDevices.topLevelItem(device).setText(1, '    \U0001F7E2')
+        if type== 'Pot':
+            connectionStatus= self.potentiostat.connect(ip_address= address)
 
-    def initDevices(self):
-        pass
+        else:
+            connectionStatus= self.positioner.connectPositioner(address, type)
+     
+
+        if connectionStatus:
+            _LabelStyle(label,True)
+
+    def connectAll(self):
+        self.connectDevices(self.labelPot, self.potentiostatIP, 'Pot')
+        self.connectDevices(self.labelPiezo, self.piezoSerial, 'Pz')
+        self.connectDevices(self.labelZstage, self.Zserial, 'Z')
+        self.connectDevices(self.labelXYstage, self.XYserial, 'XY')
+
 
 if __name__ == '__main__':
     app= QApplication([])

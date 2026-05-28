@@ -1,172 +1,144 @@
 from pipython import GCSDevice, datarectools, pitools
+from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
+from PySide6.QtWidgets import QProgressDialog, QMessageBox
 import UI_Settings
 import time
 
 """
-Collection of function to control the PI controllers and stage
-
-General Information
-
-    U-781/C867 (Olympus)
-    {
-        Instance name: self.olympus
-        Serial Number: 0125076674
-        Axis: [X:1, Y:2]
-        Default Distance unit: mm (to be confirmed)
-        
-    }
-
-    M-112/C863 (Mercury)
-    {
-        Instance name: self.mercury
-        Serial Number: 0026550002
-        Axis: [1]
-        Default Distance unit: mm (to be confirmed)
-        
-    }
-
-    P-611/E727 (Nanocube) 
-    {
-        Instance name: self.nanocube
-        Serial Number: 0125021719
-        Axis: [X:1, Y:2, Z:3]
-        Default Distance unit: um
-        
-    }
-
+Class to control the PI controllers and stage
 """
-class Positioner:
 
-    def __init__(self):
+class PI(QObject):               
 
-        self.PI= GCSDevice()  # Create PI device object
-        self.deviceID= None # Print controller information
-        self.servo= None #Servo Info
-        self.axes= self.PI.axes # Get the number of axis
-        self.nAxes= len(self.axes)
+        def __init__(self):
 
-    def connect(self, serialnum):
-        self.PI.ConnectUSB(serialnum=serialnum) # Connect through USB
-        self.deviceID= self.PI.qIDN().strip() 
-        print(self.deviceID)
+            self.Pz= GCSDevice()
+            self.Zstage= GCSDevice()
+            self.XYstage= GCSDevice()
 
-    
-    def servo_on(self, axesServo:dict[str,bool]|None= None):
-        #The argument must be written as {'AXIS_1': True or False, 'AXIS_2': True or False, ...}
-        if axesServo:
-            if len(axesServo)<=self.nAxes:
-                self.PI.SVO(axesServo)
+            self.Xmove= 0.0
+            self.Ymove= 0.0
+            self.Zmove= 0.0
 
-            raise Exception(f'Number of axis must be less than {self.axes}')
+        def connectPositioner(self, serialnum:str, type:str):
 
-        else:
-            self.PI.SVO(self.axes, True)
-        print(self.PI.qSVO(self.axes))
+            match type:
 
+                case 'Z': #For Z-stage Connect -> Activate Servo -> Reference
+                    self.Zstage.ConnectUSB(serialnum=serialnum) # Connect through USB
+                    self.Zstage.SVO(1,1)
+                    self.Zstage.FPL()
 
-    def reference_axes(self, axesRef:list[str]|None =None):
-        #The argument is a list ['AXIS_1', 'AXIS_2', ...]
-        if axesRef:
-            if len(axesRef)<=self.nAxes:
-                self.PI.FRF(axesRef)
+                    while not all(list(self.Zstage.qONT(1).values())): 
+                        time.sleep(0.1)
 
-            raise Exception(f'Number of axis must be less than {self.axes}')
-        else:
-            self.PI.FRF()
+                    if self.Zstage.gcscommands.qFRF()[1]: #If reference is succesful 
+                        print("Z-stage -Mercury- connected")
+                        return True
+                    else:
+                        print('Connection to Z-stage -Mercury- Failed')
+                        return False
+        
+                case 'XY': #For XY-stage Connect -> Activate Servo -> Reference
+                    self.XYstage.ConnectUSB(serialnum=serialnum) # Connect through USB
+                    self.XYstage.SVO({1:1, 2:1})
+                    self.XYstage.FRF()
 
-        # Wait until referencing complete
-        while not all(self.PI.qFRF(self.axes).values()):
-            time.sleep(0.1)
+                    while not all(list(self.XYstage.qONT([1,2]).values())):
+                        time.sleep(0.1)
 
-    def initialize_stage(self):
+                    if all(list(self.XYstage.gcscommands.qFRF().values())):#If reference is succesful 
+                        print("XY-stage -Olympus- connected and ready to be used")
+                        return True
+                    else:
+                        print('Connection to XY-stage -Olympus- Failed')
+                        return False
 
-        self.servo_on()
-        self.reference_axes()
+                case 'Pz': #For Piezo -> Connect (Does not require any referencing)
+                    self.Pz.ConnectUSB(serialnum=serialnum) # Connect through USB
+                    self.Pz.SVO({1:1, 2:1, 3:1})
+                    
+                    if self.Pz.gcscommands.IsConnected(): # IF connected
+                        print("Piezo -Nanocube- connected")
+                        return True
+                    else:
+                        print('Connection to Piezo -Nanocube- Failed')
+                        return False
 
-    def wait_until_done(self):
-        while any(self.PI.IsMoving().values()):
-            time.sleep(0.001)
+        def move(self)->list[float]|str:
 
-    def set_motion_parameters(self, velocity=1, acceleration=1, deceleration=1):
+            #Calculating the predicted position for each positioner after moving 
+            X0= self.XYstage.qPOS()['1']
+            Y0= self.XYstage.qPOS()['2']
+            Z0= self.Zstage.qPOS()['1']
 
-        # Set velocity
-        self.PI.VEL(self.axes, velocity)
-        # Set acceleration
-        self.PI.ACC(self.axes, acceleration)
-        # Set deceleration
-        self.PI.DEC(self.axes, deceleration)
+            Xtravel= abs(self.Xmove + self.XYstage.qPOS()['1'])
+            Ytravel= abs(self.Ymove + self.XYstage.qPOS()['2'])
+            Ztravel= self.Zmove + self.Zstage.qPOS()['1']
+          
+            if Xtravel<=65 and Ytravel<=65:
+                self.XYstage.VEL({'1':2, '2':2})
+                self.XYstage.MVR({'1':self.Xmove, '2':self.Ymove})
+            else:
+                return 'Move commands exceeds XY Stage limits'
 
-    def moveABS(self, coord:dict[str,float]|None= None):
-        #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
-        if coord:
-            if len(coord)<=self.nAxes:
-                self.PI.MOV(coord)
-                self.wait_until_done()
+            if Ztravel>=0 and Ztravel<=25:
+                self.Zstage.VEL('1',1)
+                self.Zstage.MVR('1',self.Zmove)
 
-            raise Exception(f'Number of axis must be less than {self.axes}')
+            else:
+                return 'Move commands exceeds Z Stage limits'
 
-    def moveREL(self, displacement:dict[str,float]|None= None):
-        #Argument is a dict {'AXIS_1':1.5, 'AXIS_2':10.9}
-        if displacement:
-            if len(displacement)<=self.nAxes:
-                self.PI.MVR(displacement)
-                self.wait_until_done()
+            while not all(list(self.XYstage.qONT().values())):
+                time.sleep(0.5)
+                
+            while not self.Zstage.qONT()['1']:
+                time.sleep(0.5)
 
-            raise Exception(f'Number of axis must be less than {self.axes}')
+            print(f'Succesful move to ({self.XYstage.qPOS()['1']}, {self.XYstage.qPOS()['2']}, {self.Zstage.qPOS()['1']-Z0})')
 
-    def get_position(self):
+            return [self.XYstage.qPOS()['1'], self.XYstage.qPOS()['2'], self.Zstage.qPOS()['1']-Z0]  
 
-        positions= self.PI.qPOS()
+        def reset(self):
+           
+            if self.XYstage.IsConnected():
+                self.XYstage.FRF()
 
-        return positions
+            if self.Zstage.IsConnected():
+                self.Zstage.FPL()
 
-    def get_travel_limits(self):
+            while not all(list(self.XYstage.qONT(1).values())):
+                time.sleep(0.5)
 
-        minimum= self.PI.qTMN()
-        maximum= self.PI.qTMX()
+            while not self.Zstage.qONT()['1']:
+                time.sleep(0.5)
 
-        return minimum, maximum
+            if self.Zstage.gcscommands.qFRF()[1] and all(list(self.XYstage.gcscommands.qFRF().values())):
+                print('Succesful reset!')
+                return True
+            else:
+                print('Error in reset!')
+                return False
 
-    def stop(self):
-        self.PI.STP()
+        def stop(self):
+            if self.XYstage.IsConnected():
+                self.XYstage.gcscommands.HLT(noraise=True)
 
-    def close(self):
-        self.PI.CloseConnection()
+            if self.Zstage.IsConnected():
+                self.Zstage.gcscommands.HLT(noraise=True)
+
+            print('Positioners motion Stopped!')
+
+        def moveTo(self, coordinates):
+            if self.XYstage.IsConnected():
+                self.XYstage.gcscommands.MOV({1:coordinates[0], 2:coordinates[1]})
+
+            if self.Zstage.IsConnected():
+                self.Zstage.gcscommands.MOV({1:coordinates[3]})
 
 if __name__ == "__main__":
 
-    SERIAL = "0125076674"
+    print('This File does nothing and only has helper functions for advanced positioners algorithm')
 
-    # Create stage object
-    XYstage= Positioner()
-
-    # Turn servo on and reference axes
-    XYstage.initialize_stage()
-
-    # Print current position
-    print("Current position:")
-    print(XYstage.get_position())
-
-    # Print travel limits
-    print("Travel limits:")
-    print(XYstage.get_travel_limits())
-
-    # Set motion parameters
-    XYstage.set_motion_parameters()
-
-    # Relative move
-    XYstage.moveABS({'AXIS_1':1.5, 'AXIS_2':10.9})
-
-    print("New position:")
-    print(XYstage.get_position())
-
-    # Absolute move
-    XYstage.moveREL({'AXIS_1':1.5, 'AXIS_2':10.9})
-
-    print("New position:")
-    print(XYstage.get_position())
-
-    # Close connection
-    XYstage.close()
 
 

@@ -10,11 +10,6 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit
                                QVBoxLayout, QComboBox, QFrame, QApplication, QMessageBox, QGroupBox)
 import UI_Settings
    
-def _update_att(input_value, att)-> None:
-
-    att= input_value
-    print(att)
-
 class OCPset(QWidget):
     tech= "OCP"
 
@@ -68,9 +63,9 @@ class OCPset(QWidget):
         self.frameLayout.addStretch()
         
     def update_fields(self): #Signals to update attribute as widgets are edited
-        self.lineEdit_1.editingFinished.connect(lambda: _update_att(float(self.lineEdit_1.text()), self.settings.duration))
-        self.lineEdit_2.editingFinished.connect(lambda: _update_att(float(self.lineEdit_2.text()), self.settings.dt))
-        self.eRangeCombo.currentTextChanged.connect(lambda: _update_att(self.eRangeCombo.currentData(), self.settings.eRange))
+        self.lineEdit_1.editingFinished.connect(lambda: setattr(self.settings, 'duration', float(self.lineEdit_1.text())))
+        self.lineEdit_2.editingFinished.connect(lambda: setattr(self.settings, 'dt', float(self.lineEdit_2.text())))
+        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRange', self.eRangeCombo.currentData()))
 
 if __name__ == '__main__':
     app= QApplication([])

@@ -117,13 +117,13 @@ class CPset(QWidget):
         self.frameLayout.addStretch()
 
     def update_fields(self): #Signals to update attribute as widgets are edited
-        self.iLine.editingFinished.connect(lambda: _update_att(float(self.iLine.text()), self.settings.current))
-        self.tLine.editingFinished.connect(lambda: _update_att(float(self.tLine.text()), self.settings.duration))
-        self.dtLine.editingFinished.connect(lambda: _update_att(float(self.dtLine.text()), self.settings.dt))
+        self.iLine.editingFinished.connect(lambda: setattr(self.settings, 'current', float(self.iLine.text())))
+        self.tLine.editingFinished.connect(lambda: setattr(self.settings, 'duration', float(self.tLine.text())))
+        self.dtLine.editingFinished.connect(lambda: setattr(self.settings, 'dt', float(self.dtLine.text())))
 
-        self.iRangeCombo.currentTextChanged.connect(lambda: _update_att(self.iRangeCombo.currentData(), self.settings.iRange))
-        self.eRangeCombo.currentTextChanged.connect(lambda: _update_att(self.eRangeCombo.currentData(), self.settings.eRange))
-        self.bandwithCombo.currentTextChanged.connect(lambda: _update_att(int(self.bandwithCombo.currentText()), self.settings.bandwith))
+        self.iRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'iRange', self.iRangeCombo.currentData()))
+        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRange', self.eRangeCombo.currentData()))
+        self.bandwithCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'bandwith', int(self.bandwithCombo.currentText())))
 
 if __name__ == '__main__':
     app= QApplication([])

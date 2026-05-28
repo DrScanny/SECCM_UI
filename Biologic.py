@@ -148,39 +148,19 @@ class Biologic():
         self.api.Disconnect(self.id_)
         print('Disconnected from potentiostat')
 
-    def runExperiments(self, *techniques:  UI_Settings.OCP
-                                          |UI_Settings.CA
-                                          |UI_Settings.CV
-                                          |UI_Settings.CP
-                            ,dataFile:TextIO|None= None):
+    def runExperiment(self,technique):
                             
-        echemData={}
-        for index, tech in enumerate(techniques):
-            data=[]
-            self.load_technique(tech)
+            self.load_technique(technique)
             self.start_channel()
-
-            if dataFile:
-                dataFile.write(tech.header+'\n')
 
             while True:
                 self.data= self.api.GetData(self.id_, self.channel)
                 self.status, self.tech_name= get_info_data(self.api, self.data)
                 for output in get_experiment_data(self.api, self.data, self.tech_name, self.board_type):
-
-                    dataline= ','.join(str(item) for item in output.values())
-                    data.append(dataline)
-
-                    if dataFile:
-                        dataFile.write(dataline +'\n')
-                    else:
-                        print(dataline)
+                    yield output
 
                 if self.status == "STOP":
-                    echemData[index]= data
                     break
-
-        return echemData
      
 if __name__ == '__main__':
 

@@ -12,15 +12,6 @@ import UI_Settings
 """
 File for the CA settings of the GUI
 """
-
-#region: Helper functions: _float_or_none, update_att, addWidgetsGrid
-
-def _update_att(value, att)-> None:
-     att= value
-     print(value)
-        
-#endregion
-
 class CAset(QWidget):
     tech="CA"
 
@@ -121,13 +112,13 @@ class CAset(QWidget):
         #endregion
 
     def update_fields(self): #Signals to update attribute as widgets are edited
-        self.eLine.editingFinished.connect(lambda: _update_att(float(self.eLine.text()), self.settings.potential))
-        self.tLine.editingFinished.connect(lambda: _update_att(float(self.tLine.text()), self.settings.duration))
-        self.dtLine.editingFinished.connect(lambda: _update_att(float(self.dtLine.text()), self.settings.dt))
+        self.eLine.editingFinished.connect(lambda: setattr(self.settings, 'potential', float(self.eLine.text())))
+        self.tLine.editingFinished.connect(lambda: setattr(self.settings, 'duration', float(self.tLine.text())))
+        self.dtLine.editingFinished.connect(lambda: setattr(self.settings, 'dt', float(self.dtLine.text())))
 
-        self.iRangeCombo.currentTextChanged.connect(lambda: _update_att(self.iRangeCombo.currentData(), self.settings.iRange))
-        self.eRangeCombo.currentTextChanged.connect(lambda: _update_att(self.eRangeCombo.currentData(), self.settings.eRange))
-        self.bandwithCombo.currentTextChanged.connect(lambda: _update_att(int(self.bandwithCombo.currentText()), self.settings.bandwith))
+        self.iRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'iRange', self.iRangeCombo.currentData()))
+        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRangeself', self.eRangeCombo.currentData()))
+        self.bandwithCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'bandwith', int(self.bandwithCombo.currentText())))
 
 if __name__ == '__main__':
     app= QApplication([])

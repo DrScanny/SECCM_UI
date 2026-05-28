@@ -2,17 +2,14 @@ from dataclasses import dataclass
 
 @dataclass
 class Stage():
-    moveX: int= 0 #Distance to move olympus stage in X position can take negative values
-    moveY: int= 0 #Distance to move olympus stage in Y position can take negative values
-    moveZ: int= 0 #Distance to move olympus stage in Z position can take negative values
-    posX: int= 0 #Current Absolute position in X can take negative values
-    posY: int= 0 #Current Absolute position in Y can take negative values
-    posZ: int= 0 #Current Absolute position in Z can take negative values
+    moveX: float= 0.0 #Distance to move olympus stage in X position -65-65
+    moveY: float= 0.0 #Distance to move olympus stage in Y position -65-65
+    moveZ: float= 0.0 #Distance to move mercury stage in Z position 0-25
 
 @dataclass
 class Map():
     pattern: str= 'Snake' #Pattern to follow when mapping
-    mode: str= 'None' #Mapping mode
+    mode: int= 0 #Mapping mode: 0-> None, 1-> SECCM, 2-> SECM
     dX: int= 0 #Distance between landings in X always positive
     dY: int= 0 #Distance between landings in Y always positive
     nX: int= 1 #Number of landings in X must be >=1
@@ -23,8 +20,8 @@ class Map():
 @dataclass
 class SECCM():
     speed: float= 1 #Approach speed in um
-    retract: int= 50 #Tip retraction height after landing in um
-    stop: str= 'Potentiostatic' #Technique to use for approach stop
+    retract: float= 50 #Tip retraction height after landing in um
+    stop: int= 0 #Technique to use for approach stop: 0->OCP, 1-> DC Potentiostatic, 2-> AC 
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
 
