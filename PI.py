@@ -8,7 +8,12 @@ import time
 Class to control the PI controllers and stage
 """
 
-class PI(QObject):               
+class PI(QObject): 
+
+        warning= Signal(str)
+        progress= Signal(float)
+        position= Signal(list)
+        finished= Signal()              
 
         def __init__(self):
 
@@ -65,7 +70,7 @@ class PI(QObject):
                         print('Connection to Piezo -Nanocube- Failed')
                         return False
 
-        def move(self)->list[float]|str:
+        def move(self):
 
             #Calculating the predicted position for each positioner after moving 
             X0= self.XYstage.qPOS()['1']
@@ -80,14 +85,14 @@ class PI(QObject):
                 self.XYstage.VEL({'1':2, '2':2})
                 self.XYstage.MVR({'1':self.Xmove, '2':self.Ymove})
             else:
-                return 'Move commands exceeds XY Stage limits'
-
+                self.warning.emit('Move commands exceeds XY Stage limits') 
+               
             if Ztravel>=0 and Ztravel<=25:
                 self.Zstage.VEL('1',1)
                 self.Zstage.MVR('1',self.Zmove)
 
             else:
-                return 'Move commands exceeds Z Stage limits'
+                self.warning.emit('Move commands exceeds Z Stage limits') 
 
             while not all(list(self.XYstage.qONT().values())):
                 time.sleep(0.5)
@@ -97,7 +102,8 @@ class PI(QObject):
 
             print(f'Succesful move to ({self.XYstage.qPOS()['1']}, {self.XYstage.qPOS()['2']}, {self.Zstage.qPOS()['1']-Z0})')
 
-            return [self.XYstage.qPOS()['1'], self.XYstage.qPOS()['2'], self.Zstage.qPOS()['1']-Z0]  
+            self.position.emit([self.XYstage.qPOS()['1'], self.XYstage.qPOS()['2'], self.Zstage.qPOS()['1']-Z0] )  
+            self.finished.emit() 
 
         def reset(self):
            

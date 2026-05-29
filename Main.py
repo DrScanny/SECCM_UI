@@ -23,14 +23,6 @@ from Plotting import Plot
 """
 Main file for the SECCM software
 """
-class Worker(QRunnable):
-    def __init__(self, func):
-        super().__init__()
-        self.function= func
-
-    @Slot()
-    def runFunc(self):
-        self.function
 
 class ConsoleStream(QObject): # A Class to emit any messages from Python console
     text_written= Signal(str) #Predefine a signal (str) to be emitted
@@ -93,8 +85,6 @@ class Main(QMainWindow):
         self.frameMapping.setFrameStyle(QFrame.Shape.Box| QFrame.Shadow.Plain)
         self.layoutMapping= QVBoxLayout(self.frameMapping)
         self.mapping= Mapping(); self.layoutMapping.addWidget(self.mapping)
-
-      
         #endregion
 
         #region: Logbook Section
@@ -108,9 +98,7 @@ class Main(QMainWindow):
 
         #Transferring message from Python console to the software log
         self.console_stream= ConsoleStream()
-        self.console_stream.text_written.connect(self.append_text) #Connect the emitted signal to the method append_text, so that all emitted messages are inserted in the log
         sys.stdout= self.console_stream
-
         #endregion
 
         #region: Plotting Section
@@ -121,7 +109,7 @@ class Main(QMainWindow):
         #endregion
 
         #region: Signal and event
-        self.thread_pool = QThreadPool.globalInstance()
+        self.console_stream.text_written.connect(self.append_text) #Connect the emitted signal to the method append_text, so that all emitted messages are inserted in the log
 
         self.mapping.buttonMove.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
@@ -138,17 +126,6 @@ class Main(QMainWindow):
     def append_text(self, text):
         self.textLog.insertPlainText(text)
 
-    @Slot(list)
-    def PIupdatePosition(self, coordinates):
-        self.mapping.labelXpos= coordinates[0]
-        self.mapping.labelYpos= coordinates[1]
-        self.mapping.labelZpos= coordinates[2]
-
-    @Slot(float)
-    def progress(self, value):
-        print(value)
-
-    
     def Main_AddTechnique(self):
         selection= self.experiments.selection()
         item= QTreeWidgetItem([selection.text()])
@@ -190,7 +167,22 @@ class Main(QMainWindow):
         self.devices.positioner.Ymove= self.mapping.settingsStage.moveY
         self.devices.positioner.Zmove= self.mapping.settingsStage.moveZ
 
-        XYZpos= self.devices.positioner.move()
+        self.threadPI= QThread()
+        self.devices.positioner.moveToThread(self.threadPI)
+        self.threadPI.started.connect(self.devices.positioner.move)
+        self.devices.positioner.finished.connect(self.threadPI.quit)
+        self.devices.positioner.finished.connect(self.devices.positioner.deleteLater)
+        self.threadPI.finished.connect(self.threadPI.deleteLater)
+        self.devices.positioner.position.connect(lambda p: print(p))
+        self.devices.positioner.warning.connect(lambda w: print(w))
+
+        self.threadPI.start()
+
+        self.mapping.lineXmove.setText('0')
+        self.mapping.lineYmove.setText('0')
+        self.mapping.lineZmove.setText('0')
+
+        """
 
         if isinstance(XYZpos,str):
             QMessageBox.warning(self, 'Warning', XYZpos)
@@ -203,6 +195,8 @@ class Main(QMainWindow):
             self.mapping.lineXmove.setText('0')
             self.mapping.lineYmove.setText('0')
             self.mapping.lineZmove.setText('0')
+        """
+        
 
         """
         progressBar= QProgressDialog("Moving positioners, please wait until all movement is stopped!", 'Cancel', 0, 100)
@@ -237,39 +231,6 @@ class Main(QMainWindow):
         else:
             print("No position selected!")
 
-
-    """
-    def closeEvent(self, event):
-        # Create a confirmation dialog
-        reply = QMessageBox.question(self, 'Confirm Close',
-                                   "Are you sure you want to exit?",
-                                   QMessageBox.Yes | QMessageBox.No,
-                                   QMessageBox.No)
-
-        if reply == QMessageBox.Yes:
-            # Clean up and allow the window to close
-            try:
-                self.devices.potentiostat.disconnect()
-                print("Disconnected from VMP-300")
-            except:
-                print('Error')
-
-            if self.devices.XYstage.gcscommands.IsConnected():
-                self.devices.XYstage.gcscommands.CloseConnection()
-            
-            if self.devices.Zstage.gcscommands.IsConnected(): 
-                self.devices.Zstage.gcscommands.CloseConnection()
-
-            if self.devices.piezo.gcscommands.IsConnected():
-                self.devices.piezo.gcscommands.CloseConnection()
-
-            event.accept() 
-        else:
-            # Prevent the window from closing
-            event.ignore()
-    """
-
-    
     def Main_StartExp(self):
 
         #Create savefile for data measurement
@@ -303,6 +264,39 @@ class Main(QMainWindow):
 
                 case 2:
                     print("SECM Mapping")
+
+
+    
+        """
+        def closeEvent(self, event):
+            # Create a confirmation dialog
+            reply = QMessageBox.question(self, 'Confirm Close',
+                                    "Are you sure you want to exit?",
+                                    QMessageBox.Yes | QMessageBox.No,
+                                    QMessageBox.No)
+
+            if reply == QMessageBox.Yes:
+                # Clean up and allow the window to close
+                try:
+                    self.devices.potentiostat.disconnect()
+                    print("Disconnected from VMP-300")
+                except:
+                    print('Error')
+
+                if self.devices.XYstage.gcscommands.IsConnected():
+                    self.devices.XYstage.gcscommands.CloseConnection()
+                
+                if self.devices.Zstage.gcscommands.IsConnected(): 
+                    self.devices.Zstage.gcscommands.CloseConnection()
+
+                if self.devices.piezo.gcscommands.IsConnected():
+                    self.devices.piezo.gcscommands.CloseConnection()
+
+                event.accept() 
+            else:
+                # Prevent the window from closing
+                event.ignore()
+        """
 
 if __name__ == '__main__':
     
