@@ -6,12 +6,12 @@ import multiprocessing
 
 from typing import TextIO, Any
 
-import kbio.kbio_types as KBIO
-from kbio.c_utils import c_is_64b
-from kbio.kbio_api import KBIO_api
-from kbio.kbio_tech import get_experiment_data
-from kbio.kbio_tech import get_info_data
-from kbio.utils import exception_brief
+import BiologicAPI.kbio.kbio_types as KBIO
+from BiologicAPI.kbio.c_utils import c_is_64b
+from BiologicAPI.kbio.kbio_api import KBIO_api
+from BiologicAPI.kbio.kbio_tech import get_experiment_data
+from BiologicAPI.kbio.kbio_tech import get_info_data
+from BiologicAPI.kbio.utils import exception_brief
 
 from BiologicAPI.CA_biologic import ca_parm
 from BiologicAPI.OCP_biologic import ocp_parm

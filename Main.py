@@ -1,3 +1,10 @@
+from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
+from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
+                               QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
+                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
+                               QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
+                               QTreeWidget, QProgressDialog, QProgressBar, QDialog, QDialogButtonBox)
+
 import sys
 import io
 import pyqtgraph as pg
@@ -5,20 +12,14 @@ import time
 
 from typing import Optional
 
-from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
-from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
-                               QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
-                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
-                               QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
-                               QTreeWidget, QProgressDialog)
-
-from Biologic import Biologic
+from BiologicAPI.Biologic import Biologic
 from ExpLoad import ExpLoad
 from Mapping import Mapping
-from TechSettings import TechSettings
+from EchemSettings.EchemSettings import TechSettings
 from Device import Device
 from SECCM import approachSECCM
 from Plotting import Plot
+from PI import PI
 
 """
 Main file for the SECCM software
@@ -51,11 +52,30 @@ class Main(QMainWindow):
         self.mainFrame_layout2= QVBoxLayout(); self.mainFrame_layout1.addLayout(self.mainFrame_layout2)
         self.setCentralWidget(self.mainFrame)
 
+        #Status bar
+        self.status_bar = self.statusBar() 
+        
+        self.status_bar.setStyleSheet(""" QStatusBar {font-size: 12px;}    """)                        
+        self.statusLabel= QLabel('  Status  '); self.statusLabel.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        self.statusAction= QLabel('Ready '); self.statusAction.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        self.frameProgress=QFrame(); self.frameProgress.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
+        self.frameLayout= QVBoxLayout(self.frameProgress); self.frameLayout.setContentsMargins(10, 0, 10, 0)
+        self.progress= QProgressBar(); self.frameLayout.addWidget(self.progress)
+        self.progress.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.progress.setRange(0, 0)
+        self.progress.hide()
+
+        self.status_bar.addWidget(self.statusLabel)
+        self.status_bar.addWidget(self.statusAction)
+        self.status_bar.addWidget(self.frameProgress)
+
         #region: Devices Status
         self.frameDevices= QFrame(); self.mainFrame_layout2.addWidget(self.frameDevices)
-        self.frameDevices.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
+        self.frameDevices.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Plain)
         self.devicesLayout= QVBoxLayout(self.frameDevices)
         self.devices= Device(); self.devicesLayout.addWidget(self.devices)
+        #self.devices= Device(); self.mainFrame_layout2.addWidget(self.devices)
+        
         #endregion
 
         #region: Experiment Loadout Section
@@ -163,73 +183,111 @@ class Main(QMainWindow):
 
     def PImove(self):
 
-        self.devices.positioner.Xmove= self.mapping.settingsStage.moveX
-        self.devices.positioner.Ymove= self.mapping.settingsStage.moveY
-        self.devices.positioner.Zmove= self.mapping.settingsStage.moveZ
+        move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())]
+        print(f'move[2] type is {type(move[2])}')
+        
+        self.statusAction.setText('Positioner in movement ')
+        self.progress.show()
+     
+        self.PIthread= QThread()
+        self.worker= PI()
+        self.worker.moveToThread(self.PIthread)
+        self.PIthread.started.connect(lambda: self.worker.movePI(self.devices.XYstage, self.devices.Zstage, move))
+        self.worker.finished.connect(self.PIthread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.PIthread.finished.connect(self.PIthread.deleteLater)
+        self.PIthread.finished.connect(self.progress.hide)
+        self.worker.position.connect(lambda p: self.positionUpdate(p))
+        self.worker.warning.connect(lambda w: print(w))
+        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
 
-        self.threadPI= QThread()
-        self.devices.positioner.moveToThread(self.threadPI)
-        self.threadPI.started.connect(self.devices.positioner.move)
-        self.devices.positioner.finished.connect(self.threadPI.quit)
-        self.devices.positioner.finished.connect(self.devices.positioner.deleteLater)
-        self.threadPI.finished.connect(self.threadPI.deleteLater)
-        self.devices.positioner.position.connect(lambda p: print(p))
-        self.devices.positioner.warning.connect(lambda w: print(w))
-
-        self.threadPI.start()
+        self.PIthread.start()
 
         self.mapping.lineXmove.setText('0')
         self.mapping.lineYmove.setText('0')
         self.mapping.lineZmove.setText('0')
 
-        """
+    def PIreset(self):
 
-        if isinstance(XYZpos,str):
-            QMessageBox.warning(self, 'Warning', XYZpos)
-
-        else:
-            self.mapping.labelXpos.setText(str(round(XYZpos[0],2))) 
-            self.mapping.labelYpos.setText(str(round(XYZpos[1],2))) 
-            self.mapping.labelZpos.setText(str(round(XYZpos[2],2))) 
-
-            self.mapping.lineXmove.setText('0')
-            self.mapping.lineYmove.setText('0')
-            self.mapping.lineZmove.setText('0')
-        """
-        
-
-        """
-        progressBar= QProgressDialog("Moving positioners, please wait until all movement is stopped!", 'Cancel', 0, 100)
-        progressBar.setWindowModality(Qt.WindowModality.WindowModal)
+        self.statusAction.setText('Positioner in movement ')
+        self.progress.show()
 
         self.PIthread= QThread()
-
-        self.devices.positioner.moveToThread(self.PIthread)
-        self.PIthread.started.connect(self.devices.positioner.movePositioners())
-        self.devices.positioner.finished.connect(self.PIthread.quit)
-        self.devices.positioner.finished.connect(self.devices.positioner.deleteLater)
+        self.worker= PI()
+        self.worker.moveToThread(self.PIthread)
+        self.PIthread.started.connect(lambda: self.worker.resetPI(self.devices.XYstage, self.devices.Zstage))
+        self.worker.finished.connect(self.PIthread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
         self.PIthread.finished.connect(self.PIthread.deleteLater)
+        self.PIthread.finished.connect(self.progress.hide)
+        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
 
-        self.devices.positioner.progress.connect(progressBar.setValue)
-        self.devices.positioner.position.connect(self.PIupdatePosition)
-
-        self.PIthread.start()
-        """
-    def PIreset(self):
-        self.devices.positioner.reset()
+        self.PIthread.start() 
     
     def PIstop(self):
-        self.devices.positioner.stop()
+        self.statusAction.setText('Positioner in movement ')
+
+        self.PIthread= QThread()
+        self.worker= PI()
+        self.worker.moveToThread(self.PIthread)
+        self.PIthread.started.connect(lambda: self.worker.stopPI(self.devices.XYstage, self.devices.Zstage))
+        self.worker.finished.connect(self.PIthread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.PIthread.finished.connect(self.PIthread.deleteLater)
+        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
+
+        self.thread.start()
 
     def PImoveTo(self):
+        self.statusAction.setText('Positioner in movement ')
+        self.progress.show()
+
         selection= self.mapping.listWaypoints.currentItem()
 
         if selection:
-            coordinates= selection.data(Qt.ItemDataRole.UserRole)
-            print(coordinates)
-            #self.devices.positioner.moveTo(coordinates)
+            move= selection.data(Qt.ItemDataRole.UserRole)
+            self.PIthread= QThread()
+            self.worker= PI()
+            self.worker.moveToThread(self.PIthread)
+            self.PIthread.started.connect(lambda: self.worker.moveToPI(self.devices.XYstage, self.devices.Zstage, move))
+            self.worker.finished.connect(self.PIthread.quit)
+            self.worker.finished.connect(self.worker.deleteLater)
+            self.PIthread.finished.connect(self.PIthread.deleteLater)
+            self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
+            self.PIthread.finished.connect(self.progress.hide)
+
+            self.PIthread.start()
+ 
         else:
             print("No position selected!")
+
+    def BiologicRun(self, file, technique, dataStorage:list[str]):
+        self.statusAction.setText('Electrochemical Experiments Running ')
+        self.progress.show()
+
+        self.biologicThread= QThread()
+        self.worker= Biologic(self.devices.potentiostat)
+        self.worker.moveToThread(self.biologicThread)
+        self.biologicThread.started.connect(lambda: self.worker.runEchem(technique))
+        self.worker.echemData.connect(lambda data: print(data))
+        self.biologicThread.finished.connect(lambda: print('finished'))
+        self.worker.finished.connect(self.biologicThread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.biologicThread.finished.connect(self.biologicThread.deleteLater)
+  
+
+        self.biologicThread.start()
+
+    def updateEchemData(self, file, echemData:list[str], technique:str, data:dict[str,float]):
+        dataline= ','.join(str(item) for item in data.values())
+        file.write(dataline +'\n')
+        echemData.append(dataline)
+        self.plot.add_dataPoint(technique, data)
+
+    def positionUpdate(self, position):
+        self.mapping.labelXpos.setText(position[0])
+        self.mapping.labelYpos.setText(position[1])
+        self.mapping.labelZpos.setText(position[2]-25)
 
     def Main_StartExp(self):
 
@@ -244,20 +302,16 @@ class Main(QMainWindow):
 
             # Loading technique from techList
             techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
-            data=[]
 
             match self.mapping.settingsMap.mode:
                 case 0:
                     print("Echem Only")
 
                     for tech in techList:
-                        for output in self.devices.potentiostat.runExperiment(tech):
-
-                            dataline= ','.join(str(item) for item in output.values())
-                            data.append(dataline)
-                            f.write(dataline)
-
-                            self.plot.add_dataPoint(tech.technique, output)
+                        print(tech)
+                        dataStorage=[]
+                        f.write(tech.header)
+                        self.BiologicRun(f, tech, dataStorage)
 
                 case 1:
                     print("SECCM Mapping")
@@ -265,8 +319,6 @@ class Main(QMainWindow):
                 case 2:
                     print("SECM Mapping")
 
-
-    
         """
         def closeEvent(self, event):
             # Create a confirmation dialog

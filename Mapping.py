@@ -1,7 +1,3 @@
-from dataclasses import dataclass
-import numpy as np
-import re
-
 from PySide6.QtCore import (Qt, QCoreApplication, QMetaObject)
 from PySide6.QtGui import (QPixmap, QRegularExpressionValidator, QDoubleValidator, QIntValidator)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit, QSizePolicy, QSpacerItem,
@@ -9,8 +5,8 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QWidget,  QLayout, QLineEdit
                                QPushButton, QHBoxLayout, QPlainTextEdit, QGroupBox, QListWidget, QListWidgetItem)
 
 import UI_Settings
-import Device_previous
-from pipython import GCSDevice, datarectools, pitools
+import numpy as np
+import re
 
 def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
      for line, widgetsInLine in enumerate(widgetsList):
@@ -99,7 +95,14 @@ class Mapping(QWidget):
         self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
     
         self.labelMove= QLabel('Move'); self.layoutPosition.addWidget(self.labelMove, 3,0)
-        self.labelMove.setToolTip("Move the X (mm), Y (mm), Z (mm), and Pz (\u03bcm) positionners relative to the current position. \nPositioners displacement cannot exceed their maximum range relative to its current position ")
+        self.labelMove.setToolTip(
+        """
+        Move the X (mm), Y (mm), and Z (mm) (\u03bcm) positionners relative to the current position. 
+            -X-axis: Positive Input-> Move to the right, Negative input-> Move to the left
+            -Y-axis: Positive Input-> Move away from you, Negative input-> Move toward you
+            -Z-axis: Positive Input-> Move up, Negative input-> Move down
+        Positioners displacement cannot exceed their maximum range relative to its current position 
+        """)
         
         self.lineXmove= QLineEdit(); self.layoutPosition.addWidget(self.lineXmove, 3,1)
         self.lineXmove.setText('0')
@@ -113,14 +116,14 @@ class Mapping(QWidget):
         self.lineZmove.setText('0')
         self.lineZmove.setValidator(QDoubleValidator(-25, 25, 3))
    
-        self.labelPosition= QLabel('Current'); self.layoutPosition.addWidget(self.labelPosition, 5,0)
-        self.labelPosition.setToolTip("Indicate the current position of the X, Y, Z, Pz positioners")
+        self.labelPosition= QLabel('Position'); self.layoutPosition.addWidget(self.labelPosition, 5,0)
+        self.labelPosition.setToolTip("Indicate the current position of the X, Y, Z positioners")
         self.labelXpos= QLabel('0');  self.layoutPosition.addWidget(self.labelXpos, 5,1); self.labelXpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelYpos= QLabel('0'); self.layoutPosition.addWidget(self.labelYpos, 5,2); self.labelYpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZpos= QLabel('0');  self.layoutPosition.addWidget(self.labelZpos, 5,3); self.labelZpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
        
         self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 6,0)
-        self.labelMax.setToolTip("Indicate the maximum range of the X,Y,Z, Pz.")
+        self.labelMax.setToolTip("Indicate the maximum range of the X,Y,Z")
         self.labelXmax= QLabel('\u00B165');  self.layoutPosition.addWidget(self.labelXmax, 6,1); self.labelXmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelYmax= QLabel('\u00B165'); self.layoutPosition.addWidget(self.labelYmax, 6,2); self.labelYmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZmax= QLabel('-25');  self.layoutPosition.addWidget(self.labelZmax, 6,3); self.labelZmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
@@ -176,7 +179,7 @@ class Mapping(QWidget):
         self.lineYdistance.setText('0')
         self.lineYdistance.setValidator(QDoubleValidator(0, 500, 1))
 
-        self.labelN= QLabel('No. of Landings'); self.layoutMapSize.addWidget(self.labelN,2,0)
+        self.labelN= QLabel('Landings'); self.layoutMapSize.addWidget(self.labelN,2,0)
         self.labelN.setToolTip('Number of landings per direction (X,Y)')
 
         self.lineXlandings= QLineEdit(); self.layoutMapSize.addWidget(self.lineXlandings,2,1)

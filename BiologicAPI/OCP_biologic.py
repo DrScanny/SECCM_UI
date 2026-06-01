@@ -1,9 +1,9 @@
 import sys
 
-import kbio.kbio_types as KBIO
-from kbio.kbio_tech import ECC_parm
-from kbio.kbio_tech import make_ecc_parm
-from kbio.kbio_tech import make_ecc_parms
+import BiologicAPI.kbio.kbio_types as KBIO
+from BiologicAPI.kbio.kbio_tech import ECC_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parms
 
 def ocp_parm(board_type, api, ocp_settings):
 

@@ -1,8 +1,3 @@
-import sys
-import numpy as np
-import pyqtgraph as pg
-from datetime import datetime
-
 from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (QWidget, QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
@@ -10,6 +5,10 @@ from PySide6.QtWidgets import (QWidget, QApplication, QFileDialog, QMainWindow, 
                                QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
                                QTreeWidget, QComboBox, QLineEdit, QFileDialog, QSizePolicy, QStyle, QSpinBox)
 
+import sys
+import numpy as np
+import pyqtgraph as pg
+from datetime import datetime
 from pyqtgraph.exporters import ImageExporter
 
 """
@@ -123,7 +122,7 @@ class Plot(QWidget):
     
         #stylizing the plot
         self.plotWindow.setBackground('w')
-        self.plotWindow.setRenderHint(pg.QtGui.QPainter.Antialiasing)
+        self.plotWindow.setRenderHint(pg.QtGui.QPainter.RenderHint.Antialiasing)
         axis_pen = pg.mkPen(color='k', width=1)
 
         self.plotWindow.getAxis('left').setPen(axis_pen)
@@ -143,15 +142,16 @@ class Plot(QWidget):
         self.vLine = pg.InfiniteLine(
             angle=90,
             movable=False,
-            pen=pg.mkPen((150, 150, 150), width=1, style=Qt.DashLine)
+            pen=pg.mkPen((150, 150, 150), width=1, style=Qt.PenStyle.DashLine)
         )
+
         self.plotWindow.addItem(self.vLine, ignoreBounds=True)
 
         #add horizontal hover line
         self.hLine = pg.InfiniteLine(
             angle=0,
             movable=False,
-            pen=pg.mkPen((150, 150, 150), width=1, style=Qt.DashLine)
+            pen=pg.mkPen((150, 150, 150), width=1, style=Qt.PenStyle.DashLine)
         )
         self.plotWindow.addItem(self.hLine, ignoreBounds=True)
 

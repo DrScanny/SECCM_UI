@@ -6,10 +6,10 @@ import multiprocessing
 
 from pipython import GCSDevice, datarectools, pitools
 from typing import TextIO, Any
-from Biologic import Biologic
-from kbio.kbio_tech import get_experiment_data
-from kbio.kbio_tech import get_info_data
-from kbio.utils import exception_brief
+from BiologicAPI.Biologic import Biologic
+from BiologicAPI.kbio.kbio_tech import get_experiment_data
+from BiologicAPI.kbio.kbio_tech import get_info_data
+from BiologicAPI.kbio.utils import exception_brief
 
 import UI_Settings
 
