@@ -1,138 +1,141 @@
-from pipython import GCSDevice, datarectools, pitools
+from pipython import GCSDevice, GCSError, gcserror
 from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import QProgressDialog, QMessageBox
 import time
+import functools
 
 """
 Class to control the PI controllers and stage
 """
 
+def _exception():
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(self, *args, **kwargs):
+                try:
+                    # Attempt to execute the decorated function
+                    result = func(self, *args, **kwargs)
+                    return result
+                
+                except GCSError as err:
+                    print(f'[ERROR] Positioner with {func.__name__}: {err}.')
+                
+                except IOError:
+                    print('[ERROR] Connection to Positioner: Checked if controller is turned ON.')
+
+                except Exception as err:
+                    # Handle the exception gracefully
+                    print(f"[ERROR] Positioner with {func.__name__}: {err}")
+                    # Optional: Return a default fallback value or re-raise with 'raise'
+                    return None 
+                
+                finally:
+                    # This block always runs, even if an exception or return occurred
+                    method= getattr(self, "_clean")
+                    method()
+            
+            return wrapper
+        return decorator
+
 class PI(QObject): 
 
-        warning= Signal(str)
+        message= Signal(str)
         progress= Signal(int)
         position= Signal(list)
         connection= Signal(bool)
         finished= Signal()              
 
-        def __init__(self):
+        def __init__(self, PIdevice:dict[str,GCSDevice], move:list[float]=[0.0, 0.0, 0.0]):
             super().__init__()
 
-        def connectPI(self, PIdevice:GCSDevice, type:str, serial:str):
-            print('connecting to positionner...')
+            self.XYstage= PIdevice['XY']
+            self.Zstage= PIdevice['Z']
+            self.Piezo= PIdevice['Pz']
+            self.Xmove= -1*move[0]
+            self.Ymove= move[1]
+            self.Zmove= move[2]
+            self.currentPosition= [0.0, 0.0, 0.0]
 
-            PIdevice.ConnectUSB(serial) # Connect through USB
-
-            match type:
-
-                case 'Z': #For Z-stage Connect -> Activate Servo -> Reference     
-                    PIdevice.SVO(1,1)
-                    PIdevice.FPL()
-
-                    while not all(list(PIdevice.qONT(1).values())): 
-                        time.sleep(0.1)
-
-                    if PIdevice.gcscommands.qFRF(): #If reference is succesful 
-                        print("Z-stage -Mercury- connected")
-                    else:
-                        print('Connection to Z-stage -Mercury- Failed')
-        
-                case 'XY': #For XY-stage Connect -> Activate Servo -> Reference
-                    PIdevice.SVO({1:1, 2:1})
-                    PIdevice.FRF()
-
-                    while not all(list(PIdevice.qONT([1,2]).values())):
-                        time.sleep(0.1)
-
-                    if all(list(PIdevice.gcscommands.qFRF().values())):#If reference is succesful 
-                        print("XY-stage -Olympus- connected and ready to be used")  
-                    else:
-                        print('Connection to XY-stage -Olympus- Failed')
-
-                case 'Pz': #For Piezo -> Connect (Does not require any referencing)
-                    PIdevice.SVO({1:1, 2:1, 3:1})
-                    
-                    if PIdevice.gcscommands.IsConnected(): # IF connected
-                        print("Piezo -Nanocube- connected")     
-                    else:
-                        print('Connection to Piezo -Nanocube- Failed')
-
-            self.connection.emit(True)
-
-        def movePI(self, XYstage:GCSDevice, Zstage:GCSDevice, move:list[float]):
+        @_exception()
+        def moveXYZ(self):
 
             #Calculating the predicted position for each positioner after moving 
-            Xf= abs(move[0] + XYstage.qPOS()['1'])
-            Yf= abs(move[1] + XYstage.qPOS()['2'])
+            Xf= round(abs(self.Xmove + self.XYstage.gcscommands.qPOS()['1']),3)
+            Yf= round(abs(self.Ymove + self.XYstage.qPOS()['2']),3)
+            Zf= round(self.Zmove + self.Zstage.qPOS()['1'], 3)
         
-            #Before moving check travel range is appropriate
-            if Xf<=65 and Yf<=65:
-                XYstage.VEL({'1':2, '2':2})
-                XYstage.MVR({'1':move[0], '2':move[1]})
-            else:
-                self.warning.emit('Move commands exceeds XY Stage limits') 
+            #Moving Stages
+            self.XYstage.MVR({'1':self.Xmove, '2':self.Ymove})
+            self.Zstage.MVR('1', self.Zmove)
 
-            Zf= move[2] + Zstage.qPOS()['1']
-            print(f'Zf={Zstage.qPOS()['1']}')
-    
-            if Zf>=0 and Zf<=25:
-                Zstage.VEL('1',1)
-                Zstage.MVR('1', move[2])
+            #Wait until Stages have stopped moving
+            self._wait(self.XYstage)
+            self._wait(self.Zstage)
 
-            else:
-                self.warning.emit('Move commands exceeds Z Stage limits') 
+            self._updatePosition(position= True)
 
-            while not all(list(XYstage.qONT().values())):
-                time.sleep(1)
+        @_exception()
+        def resetXYZ(self):
+
+            if self.XYstage.IsConnected():
+                self.XYstage.FRF()
+
+            if self.Zstage.IsConnected():
+                self.Zstage.gcscommands.FNL()
+
+            self._wait(self.XYstage)
+            self._wait(self.Zstage)
+
+            print('[POSITIONERS] Reset!')
+            self._updatePosition()
+
+        @_exception()
+        def stopXYZ(self):
+            if self.XYstage.IsConnected():
+                self.XYstage.gcscommands.HLT(noraise=True)
+
+            if self.Zstage.IsConnected():
+                self.Zstage.gcscommands.HLT(noraise=True)
+
+            print('[POSITIONERS] Motion Stopped by User!')
+            self._updatePosition()
+       
+        @_exception()
+        def moveToXYZ(self):
+
+            if self.XYstage.IsConnected():
+                self.XYstage.gcscommands.MOV({1:self.Xmove, 2:self.Ymove})
+
+            if self.Zstage.IsConnected():
+                self.Zstage.gcscommands.MOV('1', self.Zmove)
+
+            self._wait(self.XYstage)
+            self._wait(self.Zstage)
+         
+            self._updatePosition(position= True)
+
+        def _updatePosition(self, position:bool =False):
+            self.currentPosition= [round(-1*self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1'],3)-25]
+            self.position.emit(self.currentPosition)  
             
-            while not Zstage.qONT()['1']:
-                time.sleep(1)
-
-            self.position.emit([XYstage.qPOS()['1'], XYstage.qPOS()['2'], Zstage.qPOS()['1']])  
-            self.finished.emit() 
-
-        def resetPI(self, XYstage:GCSDevice, Zstage:GCSDevice):
-
-            if XYstage.IsConnected():
-                XYstage.FRF()
-
-            while not all(list(XYstage.qONT(1).values())):
-                time.sleep(1)
+            if position:
+                print(f'[POSITIONERS] Moved to {self.currentPosition}')
 
             self.finished.emit()
+
+        def _wait(self, PIdevice:GCSDevice):
+            # IsMoving returns an ordered dict: True if moving for each axis of the positioner. 
+            # The dict values are turned into a list and then if any values are true the while loop continues until all axis have stopped
             
-            if Zstage.IsConnected():
-                Zstage.gcscommands.FNL()
-
-            while not all(list(Zstage.qONT(1).values())):
-                time.sleep(1)
-
-            print('Positioners have been reset!')
-            self.finished.emit()
-
-        def stopPI(self, XYstage:GCSDevice, Zstage:GCSDevice):
-            if XYstage.IsConnected():
-                XYstage.gcscommands.HLT(noraise=True)
-
-            if Zstage.IsConnected():
-                Zstage.gcscommands.HLT(noraise=True)
-
-            print('Positioners motion Stopped by User!')
-            self.finished.emit()
-
-        def moveToPI(self, XYstage:GCSDevice, Zstage:GCSDevice, move:list[float]):
-
-            if XYstage.IsConnected():
-                XYstage.gcscommands.MOV({1:move[0], 2:move[1]})
-
-            if Zstage.IsConnected():
-                Zstage.gcscommands.MOV('1', move[2])
+            while any(list(PIdevice.gcscommands.IsMoving().values())):
+                time.sleep(0.5)
             
+        def _clean(self):
             self.finished.emit()
 
 if __name__ == "__main__":
 
-    print('This File does nothing and only has helper functions for advanced positioners algorithm')
+    print('This file only has helper functions for advanced positioners algorithm')
 
 
 

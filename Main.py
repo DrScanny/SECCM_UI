@@ -10,14 +10,12 @@ import io
 import pyqtgraph as pg
 import time
 
-from typing import Optional
-
 from BiologicAPI.Biologic import Biologic
 from ExpLoad import ExpLoad
 from Mapping import Mapping
 from EchemSettings.EchemSettings import TechSettings
 from Device import Device
-from SECCM import approachSECCM
+import Approach.SECCM 
 from Plotting import Plot
 from PI import PI
 
@@ -40,11 +38,13 @@ class Main(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        #Dictionnary that serves as repository for echem techniques using the techSettings.tree as keys
+        #Data storage Attributes using Treewidgets as dictionary keys
+        #itemTechPair store echem settings UI instance 
         self.itemTechPair= {}
+        self.echemData={}
 
-        #Setting up main window
-        self.setWindowTitle("MercaThor: Electrochemical Imaging") #Window title
+        #Main window initialization
+        self.setWindowTitle("MercaThor: Electrochemical Imaging") 
         self.setStyleSheet("font: 10pt") #Set the font size for eveything in the Main window. Will likely replaced to be able to control each GUI element
 
         self.mainFrame=QFrame()
@@ -52,7 +52,20 @@ class Main(QMainWindow):
         self.mainFrame_layout2= QVBoxLayout(); self.mainFrame_layout1.addLayout(self.mainFrame_layout2)
         self.setCentralWidget(self.mainFrame)
 
-        #Status bar
+        #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        #region: A- Interface
+        #Contains All PySide UI elements and related signals
+        # 1-Status bar
+        # 2-Device Status
+        # 3-Experiment Loadout Section
+        # 4-Echem Technique Settings Section
+        # 5-Positioner and Mapping Section
+        # 6-Logbook Section
+        # 7-Plotting Section
+        # 8-Signals
+        #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+        #region: A1-Status bar
         self.status_bar = self.statusBar() 
         
         self.status_bar.setStyleSheet(""" QStatusBar {font-size: 12px;}    """)                        
@@ -68,17 +81,17 @@ class Main(QMainWindow):
         self.status_bar.addWidget(self.statusLabel)
         self.status_bar.addWidget(self.statusAction)
         self.status_bar.addWidget(self.frameProgress)
+        #endregion
 
-        #region: Devices Status
+        #region: A2-Devices
         self.frameDevices= QFrame(); self.mainFrame_layout2.addWidget(self.frameDevices)
         self.frameDevices.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Plain)
         self.devicesLayout= QVBoxLayout(self.frameDevices)
         self.devices= Device(); self.devicesLayout.addWidget(self.devices)
         #self.devices= Device(); self.mainFrame_layout2.addWidget(self.devices)
-        
         #endregion
 
-        #region: Experiment Loadout Section
+        #region: A3-Exp Loadout
         self.layoutMainHorizontal= QHBoxLayout(); self.mainFrame_layout2.addLayout(self.layoutMainHorizontal)
         self.techFrame= QFrame(); self.layoutMainHorizontal.addWidget(self.techFrame, alignment= Qt.AlignmentFlag.AlignCenter)
         self.techFrame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Plain)
@@ -93,21 +106,21 @@ class Main(QMainWindow):
         self.techFrame_layout.addStretch()
         #endregion
 
-        #region: Echem Technique Settings Section
+        #region: A4-Echem
         self.settingsFrame= QFrame(); self.layoutMainHorizontal.addWidget(self.settingsFrame)
         self.settingsFrame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Plain)
         self.settingsLayout= QVBoxLayout(self.settingsFrame)
         self.techSettings= TechSettings(); self.settingsLayout.addWidget(self.techSettings)
         #endregion
 
-        #region: Stage Control and Approach Settings Section
+        #region: A5-Positioner
         self.frameMapping= QFrame(); self.mainFrame_layout1.addWidget(self.frameMapping)
         self.frameMapping.setFrameStyle(QFrame.Shape.Box| QFrame.Shadow.Plain)
         self.layoutMapping= QVBoxLayout(self.frameMapping)
         self.mapping= Mapping(); self.layoutMapping.addWidget(self.mapping)
         #endregion
 
-        #region: Logbook Section
+        #region: A6-Logbook
         self.logFrame= QFrame()
         self.logLayout= QVBoxLayout(self.logFrame)
         self.mainFrame_layout2.addWidget(self.logFrame)
@@ -116,36 +129,52 @@ class Main(QMainWindow):
         self.textLog= QPlainTextEdit(); self.logLayout.addWidget(self.textLog)
         self.textLog.ensureCursorVisible()
 
-        #Transferring message from Python console to the software log
+        #Instantiating a signal that emit text and connect to python standard output file (python console that displays messages)
         self.console_stream= ConsoleStream()
         sys.stdout= self.console_stream
         #endregion
 
-        #region: Plotting Section
+        #region: A7-Plotting
         self.plotFrame= QFrame(); self.mainFrame_layout1.addWidget(self.plotFrame)
         self.plotLayout= QVBoxLayout(self.plotFrame)
         self.plot= Plot.Plot(); self.plotLayout.addWidget(self.plot)
           
         #endregion
+       
+        #region: A8-Signals
+        #Displaying messages in UI log by connecting [Signal]:-ConsoleStream- to [Method]: -append_text-
+        self.console_stream.text_written.connect(self.append_text) 
+        
+        #Progress bar start and hide by connecting [Signal]: -devices- to [method]: -_progress-
+        self.devices.startCommand.connect(lambda start: self._progress(start))
+        self.devices.endCommand.connect(lambda end: self._progress(end))
 
-        #region: Signal and event
-        self.console_stream.text_written.connect(self.append_text) #Connect the emitted signal to the method append_text, so that all emitted messages are inserted in the log
-
+        #PI positioner commands by connecting [Signal]: -mapping- to [Method]: -PI-
         self.mapping.buttonMove.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
 
+        #Experiment Loadout commands
         self.experiments.list.itemDoubleClicked.connect(self.Main_AddTechnique)
         self.experiments.addButton.clicked.connect(self.Main_AddTechnique)
         self.experiments.tree.itemClicked.connect(self.Main_ChangeSettingsPage)
-
-        self.experiments.buttonStart.clicked.connect(self.Main_StartExp)
+        self.experiments.buttonStart.clicked.connect(self.startMap)
+        self.experiments.buttonStop.clicked.connect(self.stopMap)
         #endregion
+        #endregion
+        
+    #region: B-Core Methods
+    #Contains all the core methods for critical operation of the SECCM/SECM
+    # 1-UI
+    # 2-Potentiostat
+    # 3-Positioner
+    # 4-Mapping
 
     @Slot(str)
     def append_text(self, text):
         self.textLog.insertPlainText(text)
 
+    #region: B1-UI
     def Main_AddTechnique(self):
         selection= self.experiments.selection()
         item= QTreeWidgetItem([selection.text()])
@@ -163,7 +192,223 @@ class Main(QMainWindow):
     def Main_ChangeSettingsPage(self):
         item= self.experiments.tree.currentItem()
         self.techSettings.stack_changeWidget(self.itemTechPair[item])
+    #endregion
 
+    #region: B2-Potentiostat
+    def BiologicRun(self, techniqueList):
+
+        #-----------------------------------------------------------------------------------------------------------------------------------
+        #Creating new thread and worker class instance to execute method
+        #The worker class instance must be self-contained and have everything needed inside: arguments as attribute (including device connection) and method to run in thread
+        #device connection
+        #Once thread and worker instance are created, the worker is moved inside the thread and connect to the started signal
+        #-----------------------------------------------------------------------------------------------------------------------------------
+        self.threadBiologic= QThread()
+        self.workerBiologic= Biologic(self.devices.potentiostat, techniqueList) 
+        self.workerBiologic.moveToThread(self.threadBiologic)
+        self.threadBiologic.started.connect(self.workerBiologic.runEchem)
+
+        #Signal to update GUI during thread execution
+        self.workerBiologic.echemData.connect(lambda echemData: self._updatePlot(echemData))
+        self.workerBiologic.finished.connect(lambda: self._progress({'end':'0'}))
+
+        #Once the process inside the thread is done, the thread is to be closed upon receiving a finished signal
+        self._threadClose(self.newWorker, self.threadBiologic)
+
+        #Start the thread
+        self.threadBiologic.start()
+        self._progress({'start': 'Echem Measurement in progress... '})
+    #endregion
+
+    #region: B3-Positioners 
+    def PImove(self):
+
+        try:
+            move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())]
+            PIdevice= {'XY':self.devices.XYstage, 'Z':self.devices.Zstage, 'Pz':self.devices.PzStage}
+
+            self.newThread= QThread()
+            self.newWorker= PI(PIdevice, move)
+            self.newWorker.moveToThread(self.newThread)
+            self.newThread.started.connect(self.newWorker.moveXYZ)
+
+            self.newWorker.position.connect(lambda position: self._positionUpdate(position))
+            self.newWorker.finished.connect(lambda: self._progress({'end':'0'}))
+
+            self._threadClose(self.newWorker, self.newThread)
+
+            self.newThread.start()
+            self._progress({'start': 'Positioner in movement... '})
+
+            self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
+        
+        except Exception as err:
+            f'[ERROR] **PImove**: {err}.'
+
+    def PImoveTo(self):
+
+        try:
+            selected= self.mapping.listWaypoints.currentItem()
+  
+            move= selected.data(Qt.ItemDataRole.UserRole)
+            PIdevice= {'XY':self.devices.XYstage, 'Z':self.devices.Zstage, 'Pz':self.devices.PzStage}
+
+            self.newThread= QThread()
+            self.newWorker= PI(PIdevice, move)
+
+            self.newWorker.moveToThread(self.newThread)
+            self.newThread.started.connect(self.newWorker.moveToXYZ)
+           
+            self.newWorker.position.connect(lambda position: self._positionUpdate(position))
+            self.newWorker.finished.connect(lambda: self._progress({'end':'0'}))
+
+            self._threadClose(self.newWorker, self.newThread)
+
+            self.newThread.start()
+            self._progress({'start': 'Positioner in movement... '})
+
+        except AttributeError:
+            print('[ERROR] **Move To** requires a position to be selected')
+        
+        except Exception as err:
+            f'[ERROR] **PImoveTo**: {err}.'
+
+    def PIreset(self):
+        try:
+            PIdevice= {'XY':self.devices.XYstage, 'Z':self.devices.Zstage, 'Pz':self.devices.PzStage}
+
+            self.newThread= QThread()
+            self.newWorker= PI(PIdevice)
+            self.newWorker.moveToThread(self.newThread)
+            self.newThread.started.connect(self.newWorker.resetXYZ)
+
+            self.newWorker.position.connect(lambda position: self._positionUpdate(position))
+            self.newWorker.finished.connect(lambda: self._progress({'end':'0'}))
+
+            self._threadClose(self.newWorker, self.newThread)
+
+            self.newThread.start()
+            self._progress({'start': 'Resetting Positioners... '})
+        
+        except Exception as err:
+            f'[ERROR] **PIreset**: {err}.'
+
+    def PIstop(self):
+        try:
+            PIdevice= {'XY':self.devices.XYstage, 'Z':self.devices.Zstage, 'Pz':self.devices.PzStage}
+
+            self.newThread= QThread()
+            self.newWorker= PI(PIdevice)
+            self.newWorker.moveToThread(self.newThread)
+            self.newThread.started.connect(self.newWorker.stopXYZ)
+
+            self.newWorker.position.connect(lambda position: self._positionUpdate(position))
+
+            self._threadClose(self.newWorker, self.newThread)
+
+            self.newThread.start()
+        
+        except Exception as err:
+            f'[ERROR] **PIstop**: {err}.'
+
+    #endregion
+
+    #region: B5-**Mapping**
+    def startMap(self):
+
+        # Loading technique from techList
+        techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+
+        match self.mapping.settingsMap.mode:
+            case 0:
+                print("Echem only")
+                self.BiologicRun(techList)
+                    
+            case 1:
+                print("SECCM Mapping")
+
+            case 2:
+                print("SECM Mapping")
+
+    def stopMap(self):
+        try:
+            self.workerBiologic.stopBiologic()
+        
+        except Exception as err:
+            print(f'[ERROR] **startMap**:{err}')
+        
+        
+    #endregion
+
+    #region: C-Utilities
+    #Contains secondary methods that are helpful for core methods
+    # 1-
+    # 2-
+    # 3-
+    # 4-
+    
+    #region: C1-Positioner
+    def _positionUpdate(self, position):
+        self.mapping.labelXpos.setText(str(position[0]))
+        self.mapping.labelYpos.setText(str(position[1]))
+        self.mapping.labelZpos.setText(str(position[2]-25))
+
+    #region: C2-Progress Bar
+    def _progress(self, status:dict[str,str]):
+        if 'start' in status:
+            self.statusAction.setText(status['start'])
+            self.progress.show()
+
+        elif 'end' in status:
+            self.statusAction.setText('Ready ')
+            self.progress.hide()
+
+    #region: C3-Plotting
+    def _updatePlot(self, data):
+        self.plot.x_data.append(data['t'])
+        self.plot.y_data.append(data['Ewe'])
+        if self.plot.plot_item:
+            self.plot.plot_item.setData(self.plot.x_data, self.plot.y_data)
+
+    def _threadClose(self, worker, thread:QThread):
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+    """
+    def closeEvent(self, event):
+        # Create a confirmation dialog
+        reply = QMessageBox.question(self, 'Confirm Close',
+                                "Are you sure you want to exit?",
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            # Clean up and allow the window to close
+            try:
+                self.devices.potentiostat.disconnect()
+                print("Disconnected from VMP-300")
+            except:
+                print('Error')
+
+            if self.devices.XYstage.gcscommands.IsConnected():
+                self.devices.XYstage.gcscommands.CloseConnection()
+            
+            if self.devices.Zstage.gcscommands.IsConnected(): 
+                self.devices.Zstage.gcscommands.CloseConnection()
+
+            if self.devices.piezo.gcscommands.IsConnected():
+                self.devices.piezo.gcscommands.CloseConnection()
+
+            event.accept() 
+        else:
+            # Prevent the window from closing
+            event.ignore()
+        """
+    #endregion
+
+    #region: Input
+    #Contain keyboard or mouse event to execute UI commands
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete:
             treeSelection= self.experiments.tree.currentItem()
@@ -180,175 +425,7 @@ class Main(QMainWindow):
             
         else:
             super().keyPressEvent(event)
-
-    def PImove(self):
-
-        move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())]
-        print(f'move[2] type is {type(move[2])}')
-        
-        self.statusAction.setText('Positioner in movement ')
-        self.progress.show()
-     
-        self.PIthread= QThread()
-        self.worker= PI()
-        self.worker.moveToThread(self.PIthread)
-        self.PIthread.started.connect(lambda: self.worker.movePI(self.devices.XYstage, self.devices.Zstage, move))
-        self.worker.finished.connect(self.PIthread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.PIthread.finished.connect(self.PIthread.deleteLater)
-        self.PIthread.finished.connect(self.progress.hide)
-        self.worker.position.connect(lambda p: self.positionUpdate(p))
-        self.worker.warning.connect(lambda w: print(w))
-        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
-
-        self.PIthread.start()
-
-        self.mapping.lineXmove.setText('0')
-        self.mapping.lineYmove.setText('0')
-        self.mapping.lineZmove.setText('0')
-
-    def PIreset(self):
-
-        self.statusAction.setText('Positioner in movement ')
-        self.progress.show()
-
-        self.PIthread= QThread()
-        self.worker= PI()
-        self.worker.moveToThread(self.PIthread)
-        self.PIthread.started.connect(lambda: self.worker.resetPI(self.devices.XYstage, self.devices.Zstage))
-        self.worker.finished.connect(self.PIthread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.PIthread.finished.connect(self.PIthread.deleteLater)
-        self.PIthread.finished.connect(self.progress.hide)
-        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
-
-        self.PIthread.start() 
-    
-    def PIstop(self):
-        self.statusAction.setText('Positioner in movement ')
-
-        self.PIthread= QThread()
-        self.worker= PI()
-        self.worker.moveToThread(self.PIthread)
-        self.PIthread.started.connect(lambda: self.worker.stopPI(self.devices.XYstage, self.devices.Zstage))
-        self.worker.finished.connect(self.PIthread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.PIthread.finished.connect(self.PIthread.deleteLater)
-        self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
-
-        self.thread.start()
-
-    def PImoveTo(self):
-        self.statusAction.setText('Positioner in movement ')
-        self.progress.show()
-
-        selection= self.mapping.listWaypoints.currentItem()
-
-        if selection:
-            move= selection.data(Qt.ItemDataRole.UserRole)
-            self.PIthread= QThread()
-            self.worker= PI()
-            self.worker.moveToThread(self.PIthread)
-            self.PIthread.started.connect(lambda: self.worker.moveToPI(self.devices.XYstage, self.devices.Zstage, move))
-            self.worker.finished.connect(self.PIthread.quit)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.PIthread.finished.connect(self.PIthread.deleteLater)
-            self.PIthread.finished.connect(lambda: self.statusAction.setText('Ready '))
-            self.PIthread.finished.connect(self.progress.hide)
-
-            self.PIthread.start()
- 
-        else:
-            print("No position selected!")
-
-    def BiologicRun(self, file, technique, dataStorage:list[str]):
-        self.statusAction.setText('Electrochemical Experiments Running ')
-        self.progress.show()
-
-        self.biologicThread= QThread()
-        self.worker= Biologic(self.devices.potentiostat)
-        self.worker.moveToThread(self.biologicThread)
-        self.biologicThread.started.connect(lambda: self.worker.runEchem(technique))
-        self.worker.echemData.connect(lambda data: print(data))
-        self.biologicThread.finished.connect(lambda: print('finished'))
-        self.worker.finished.connect(self.biologicThread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.biologicThread.finished.connect(self.biologicThread.deleteLater)
-  
-
-        self.biologicThread.start()
-
-    def updateEchemData(self, file, echemData:list[str], technique:str, data:dict[str,float]):
-        dataline= ','.join(str(item) for item in data.values())
-        file.write(dataline +'\n')
-        echemData.append(dataline)
-        self.plot.add_dataPoint(technique, data)
-
-    def positionUpdate(self, position):
-        self.mapping.labelXpos.setText(position[0])
-        self.mapping.labelYpos.setText(position[1])
-        self.mapping.labelZpos.setText(position[2]-25)
-
-    def Main_StartExp(self):
-
-        #Create savefile for data measurement
-        filePath, _ = QFileDialog.getSaveFileName(
-                                                    parent=None,
-                                                    caption="Create Save File",
-                                                    dir="",
-                                                    filter="Text Files (*.txt);;All Files (*)")
-        
-        with open(filePath, "a") as f:
-
-            # Loading technique from techList
-            techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
-
-            match self.mapping.settingsMap.mode:
-                case 0:
-                    print("Echem Only")
-
-                    for tech in techList:
-                        print(tech)
-                        dataStorage=[]
-                        f.write(tech.header)
-                        self.BiologicRun(f, tech, dataStorage)
-
-                case 1:
-                    print("SECCM Mapping")
-
-                case 2:
-                    print("SECM Mapping")
-
-        """
-        def closeEvent(self, event):
-            # Create a confirmation dialog
-            reply = QMessageBox.question(self, 'Confirm Close',
-                                    "Are you sure you want to exit?",
-                                    QMessageBox.Yes | QMessageBox.No,
-                                    QMessageBox.No)
-
-            if reply == QMessageBox.Yes:
-                # Clean up and allow the window to close
-                try:
-                    self.devices.potentiostat.disconnect()
-                    print("Disconnected from VMP-300")
-                except:
-                    print('Error')
-
-                if self.devices.XYstage.gcscommands.IsConnected():
-                    self.devices.XYstage.gcscommands.CloseConnection()
-                
-                if self.devices.Zstage.gcscommands.IsConnected(): 
-                    self.devices.Zstage.gcscommands.CloseConnection()
-
-                if self.devices.piezo.gcscommands.IsConnected():
-                    self.devices.piezo.gcscommands.CloseConnection()
-
-                event.accept() 
-            else:
-                # Prevent the window from closing
-                event.ignore()
-        """
+    #endregion
 
 if __name__ == '__main__':
     

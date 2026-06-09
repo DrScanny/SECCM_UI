@@ -125,7 +125,7 @@ class Mapping(QWidget):
         self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 6,0)
         self.labelMax.setToolTip("Indicate the maximum range of the X,Y,Z")
         self.labelXmax= QLabel('\u00B165');  self.layoutPosition.addWidget(self.labelXmax, 6,1); self.labelXmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
-        self.labelYmax= QLabel('\u00B165'); self.layoutPosition.addWidget(self.labelYmax, 6,2); self.labelYmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelYmax= QLabel('\u00B150'); self.layoutPosition.addWidget(self.labelYmax, 6,2); self.labelYmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZmax= QLabel('-25');  self.layoutPosition.addWidget(self.labelZmax, 6,3); self.labelZmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,7,0,1,5) 

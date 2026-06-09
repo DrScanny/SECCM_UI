@@ -48,7 +48,7 @@ class Plot(QWidget):
                                 "CV": ("Ewe", "Iwe")}
 
         #current data list        
-        self.x_data = []
+        self.x_data= []
         self.y_data = []
         
         #save datasets in a series
@@ -197,7 +197,9 @@ class Plot(QWidget):
             self.plot_item.setData(self.x_data, self.y_data)
 
      #method that updates the graph as data is being acquired from the potentiostat
-    def add_dataPoint(self, technique, parsed_row):
+    def add_dataPoint(self, tech, parsed_row):
+
+        technique= tech.technique
         
         #Accounting for possible technique mismatch error
         if technique not in self.technique_axes:
@@ -346,16 +348,16 @@ class Plot(QWidget):
         self.xvar = ""
         self.yvar = ""
         
-        if technique == 'Open Circuit Potential -OCP':
+        if technique == 'OCP':
 
             self.xvar = self.timevar 
             self.yvar = self.potentialvar   
         
-        elif technique == 'ChronoAmperometry -CA': 
+        elif technique == 'CA': 
             self.xvar = self.timevar
             self.yvar = self.currentvar
     
-        elif technique == 'ChronoPotentiometry -CP': 
+        elif technique == 'CP': 
             self.xvar = self.timevar
             self.yvar = self.potentialvar
         

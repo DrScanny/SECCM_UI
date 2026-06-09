@@ -62,14 +62,19 @@ class KBIO_api:
             print(exception_brief(e, 1))
 
     def Connect(self, server, timeout=5):
+
+        try:
        
-        id_ = c_int32()
-        info = self.DeviceInfo()
-        error = self.BL_Connect(server.encode(), timeout, id_, info)
-        if error != KBIO.ERROR.NOERROR.value:
-            raise ConnectionError()
-        # info is only provided by this call, so it must be kept by caller for further use.
-        return id_.value, info
+            id_ = c_int32()
+            info = self.DeviceInfo()
+            error = self.BL_Connect(server.encode(), timeout, id_, info)
+            if error != KBIO.ERROR.NOERROR.value:
+                raise ConnectionError()
+            # info is only provided by this call, so it must be kept by caller for further use.
+            return id_.value, info
+        
+        except KBIO_api.BL_Error as err:
+            print(err)
 
     def GetUSBDeviceInfos(self, index):
         company = c_buffer(128)

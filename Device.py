@@ -6,24 +6,12 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGr
                                QTreeWidget, QLineEdit, QGridLayout, QGroupBox)
 #from qtwidgets import Toggle, AnimatedToggle
 
-import sys
-import pyqtgraph as pg
-from pipython import GCSDevice
+
+from pipython import GCSDevice, GCSError, gcserror
 import time
-import functools
 from PI import PI
 from BiologicAPI.Biologic import Biologic
 
-
-def handle_errors(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            print(f"Connection to device has failed {func.__name__}: {e}")
-            return None  # Or a custom default response
-    return wrapper
 
 def _Vline(layout):
     line = QFrame()
@@ -41,8 +29,73 @@ def _LabelStatus(label:QLabel, state:bool):
         label.setText(' \U0001F7E2 ')
         #label.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Raised)
         #label.setStyleSheet("background-color: #00FF00;")
+
+class PIconnect(QObject): 
+        deviceNames= {'Z': 'Z-stage -Mercury-', 'XY':'XY-stage -Olympus-', 'Pz': 'Piezo -Nanocube- '}
+
+        message= Signal(str)
+        status= Signal(bool)
+        progress= Signal(object)
+        finished= Signal()              
+
+        def __init__(self, PIdevice:GCSDevice, type:str, serial:str):
+            super().__init__()
+
+            
+            self.PIdevice= PIdevice
+            self.PIname= PIconnect.deviceNames[type]
+            self.type= type
+            self.serial= serial
+            
+        def connectPIdevice(self):
+
+            try:
+                # Connect to PI device through USB
+                self.PIdevice.ConnectUSB(self.serial) 
+
+                # Depending on the positioner, the initialization is different
+
+                if  self.type=='Z': #For Z-stage Connect -> Activate Servo -> Reference     
+                    
+                    self.PIdevice.gcscommands.SVO(1,1)
+                    self.PIdevice.gcscommands.VEL(1, 1)
+                    self.PIdevice.FPL()
         
+                elif  self.type=='XY': #For XY-stage Connect -> Activate Servo -> Reference     
+                    
+                    self.PIdevice.gcscommands.SVO({1:1, 2:1})
+                    self.PIdevice.gcscommands.VEL({1:1, 2:1})
+                    self.PIdevice.FRF()
+
+                elif self.type=='Pz': #For Piezo Connect -> Activate Servo   
+                    
+                    self.PIdevice.gcscommands.SVO({1:1, 2:1, 3:1})
+                    self.PIdevice.gcscommands.VEL({1:1, 2:1, 3:1})
+
+                #Wait until all stages are ready
+                while not all(list(self.PIdevice.qONT().values())): 
+                    time.sleep(0.1)
+
+                if self.PIdevice.gcscommands.IsConnected():
+                        print(f"[EVENT] Connection to {self.PIname}, ready to be used!")
+                        self.status.emit(True)
+
+            except IOError:
+                print(f'[ERROR] Connection to {self.PIname}: Checked if controller is turned ON.')
+                self.status.emit(False)
+
+            except GCSError as err:
+                print(f"[ERROR] Connection to {self.PIname}: {GCSError(err)}")
+
+            except Exception as err:
+                self.status.emit(False)
+                print(f"[ERROR] Connection to {self.PIname}: {err}")
+                
+            finally:
+                self.finished.emit()
+            
 class FrameDevice(QWidget):
+
     def __init__(self, layout, buttonText:str):
         super().__init__()
 
@@ -57,10 +110,14 @@ class FrameDevice(QWidget):
         self.button= QPushButton('connect'); self.frameLayout.addWidget(self.button,1,0,1,2)
     
 class Device(QWidget):
+
+    startCommand= Signal(object)
+    endCommand= Signal(object)
+
     def __init__(self):
         super().__init__()
 
-        self.potentiostat= {'channel':1, 'id_':None, 'api':None, 'board_type': None}
+        self.potentiostat= {'api':None, 'channel':1, 'board_type': None, 'id_': None}
         self.PzStage= GCSDevice()
         self.Zstage= GCSDevice()
         self.XYstage= GCSDevice()
@@ -84,48 +141,53 @@ class Device(QWidget):
         self.Z= FrameDevice(self.layoutDevice, 'Z-Stage')
         self.Pz= FrameDevice(self.layoutDevice, 'Piezo')
 
-        self.VMP300.button.clicked.connect(lambda: self.connectPotentiostat())
+        self.VMP300.button.clicked.connect(lambda: self.connectPotentiostat(self.VMP300.labelStatus))
         self.XY.button.clicked.connect(lambda: self.connectPositioner(self.XY.labelStatus, self.XYstage, self.XYserial, 'XY'))
         self.Z.button.clicked.connect(lambda: self.connectPositioner(self.Z.labelStatus, self.Zstage, self.Zserial, 'Z'))
         self.Pz.button.clicked.connect(lambda: self.connectPositioner(self.Pz.labelStatus, self.PzStage, self.piezoSerial, 'Pz'))
 
     def connectPositioner(self, label:QLabel, positioner:GCSDevice, serialnum:str, type:str):
-     
-        self.PIthread= QThread()
-        self.worker= PI()
-        self.worker.moveToThread(self.PIthread)
-        self.PIthread.started.connect(lambda: self.worker.connectPI(positioner, type, serial= serialnum))
-        self.worker.connection.connect(lambda connected: _LabelStatus(label, connected))
-        self.worker.finished.connect(self.PIthread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.PIthread.finished.connect(self.PIthread.deleteLater)
+        self.newThread= QThread()
+        self.newWorker= PIconnect(positioner, type, serialnum)
+        self.newWorker.moveToThread(self.newThread)
+        self.newThread.started.connect(self.newWorker.connectPIdevice)
+    
+        self.newWorker.message.connect(lambda m: print(m))
+        self.newWorker.progress.connect(lambda m: print(m))
+        self.newWorker.status.connect(lambda status:  _LabelStatus(label, status))
+        self.newThread.finished.connect(lambda: self.endCommand.emit({'end':0}))
 
-        self.PIthread.start()
-
-    def connectPotentiostat(self):
-        self.BiologicThread= QThread()
-        self.worker= Biologic(self.potentiostat)
-        self.worker.moveToThread(self.BiologicThread)
-        self.BiologicThread.started.connect(lambda: self.worker.connectBiologic(self.potentiostatIP))
-        self.worker.connection.connect(self.potentiostatUpdate)
-        self.worker.finished.connect(self.BiologicThread.quit)
+        self._threadClose(self.newWorker, self.newThread)
+ 
+        self.startCommand.emit({'start': f"Connecting to {PIconnect.deviceNames[type]}... "})
+        self.newThread.start()
        
-        self.worker.finished.connect(lambda: _LabelStatus(self.VMP300.labelStatus, True))
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.BiologicThread.finished.connect(self.BiologicThread.deleteLater)
+    def connectPotentiostat(self, label:QLabel):
 
-        self.BiologicThread.start()
+        self.newThread= QThread()
+        self.newWorker= Biologic(self.potentiostat)
+        self.newWorker.moveToThread(self.newThread)
+        self.newThread.started.connect(self.newWorker.connectBiologic)
+    
+        self.newWorker.biologic.connect(lambda settings: setattr(self, 'potentiostat', settings))
+        self.newWorker.biologic.connect(lambda: _LabelStatus(label, True))
+        self.newThread.finished.connect(lambda: self.endCommand.emit({'end':0}))
 
+        self._threadClose(self.newWorker, self.newThread)
+
+        self.startCommand.emit({'start': "Connecting to VMP-300... "})
+        self.newThread.start()
+        
     def connectAll(self):
-        self.connectPotentiostat()
+        self.connectPotentiostat(self.VMP300.labelStatus)
         self.connectPositioner(self.Pz.labelStatus, self.PzStage, self.piezoSerial, 'Pz')
         self.connectPositioner(self.Z.labelStatus, self.Zstage, self.Zserial, 'Z')
         self.connectPositioner(self.XY.labelStatus, self.XYstage, self.XYserial, 'XY')
 
-    def potentiostatUpdate(self, connection):
-        print('potentiostat connected!')
-        self.potentiostat= connection
-    
+    def _threadClose(self, worker, thread:QThread):
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
 
 if __name__ == '__main__':
     app= QApplication([])
