@@ -58,7 +58,7 @@ class PI(QObject):
 
         @_exception()
         def moveXYZ(self):
-
+        
             #Calculating the predicted position for each positioner after moving 
             Xf= round(abs(self.Xmove + self.XYstage.gcscommands.qPOS()['1']),3)
             Yf= round(abs(self.Ymove + self.XYstage.qPOS()['2']),3)
@@ -73,15 +73,16 @@ class PI(QObject):
             self._wait(self.Zstage)
 
             self._updatePosition(position= True)
+      
 
         @_exception()
         def resetXYZ(self):
 
             if self.XYstage.IsConnected():
-                self.XYstage.FRF()
+                self.XYstage.gcs.commands.FRF()
 
             if self.Zstage.IsConnected():
-                self.Zstage.gcscommands.FNL()
+                self.Zstage.gcscommands.FPL()
 
             self._wait(self.XYstage)
             self._wait(self.Zstage)
@@ -115,7 +116,7 @@ class PI(QObject):
             self._updatePosition(position= True)
 
         def _updatePosition(self, position:bool =False):
-            self.currentPosition= [round(-1*self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1'],3)-25]
+            self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3)]
             self.position.emit(self.currentPosition)  
             
             if position:

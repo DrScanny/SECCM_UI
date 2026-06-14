@@ -22,7 +22,7 @@ def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
             else:
                 layout.addWidget(widget, line,col)
 
-def _mapLandings(settings: UI_Settings.Map):
+def _mapLandings(settings: UI_Settings.Mapping):
     Xlandings= np.arange(0, settings.dX*settings.nX, settings.nX )
     Ylandings= np.arange(0, settings.dY*settings.nY, settings.nY )
 
@@ -51,33 +51,29 @@ class Mapping(QWidget):
       
     def __init__(self):
         super().__init__()
-        self.frameWidget= QFrame()
-        self.layoutWidget= QVBoxLayout()
-        self.setLayout(self.layoutWidget)
-    
-        self.frameMain= QFrame()
-        self.frameMain.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
-        self.frameMain.setFixedWidth(300)
-        self.layoutMain= QVBoxLayout(self.frameMain)
-        self.layoutWidget.addWidget(self.frameMain)
-        self.frameMain.setSizePolicy(sizePolicy)
-
-        self.settingsStage= UI_Settings.Stage()
-        self.settingsMap= UI_Settings.Map()
-        self.settingsApproach= UI_Settings.SECCM()
+        self.layoutWidget= QVBoxLayout(); self.setLayout(self.layoutWidget)
+        self.frame= QFrame(); self.frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
+        self.frame.setSizePolicy(sizePolicy); self.frame.setFixedWidth(300)
+        self.layoutFrame= QVBoxLayout(self.frame); self.layoutWidget.addWidget(self.frame)
         
-        self.widgetPos()
+        self.settingsMove= UI_Settings.Move()
+        self.settingsMapping= UI_Settings.Mapping()
+        self.settingsSECCM= UI_Settings.SECCM()
+        #self.settingsSECM= UI_Settings.SECM() Future update
+
+        #Method for UI elements
+        self.widgetPositioner()
         self.widgetMapping()
         self.widgetStack()
 
         #self.setStyleSheet("QLineEdit {border: 1px solid gray; border-radius: 4px; background-color: white; padding: 2px;text-decoration: none;}")
     
-    def widgetPos(self):
+    #region: Positioner
+    def widgetPositioner(self):
       
         self.groupStage= QGroupBox('Positioners'); self.groupStage.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
-        #self.framePosition.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
         self.layoutPosition= QGridLayout(self.groupStage)
-        self.layoutMain.addWidget(self.groupStage)
+        self.layoutFrame.addWidget(self.groupStage)
 
         self.sepPositionSection1= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection1,0,0,1,5) 
         self.sepPositionSection1.setFrameShape(QFrame.Shape.HLine)
@@ -132,12 +128,12 @@ class Mapping(QWidget):
         self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,8,0,1,2)
+        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,8,2,1,2)
         self.labelWaypoints.setStyleSheet('font-weight: bold;')
         self.labelWaypoints.setToolTip('A position of interest can be saved by pressing the Save Position Button. \nReturn to the position of interest by selecting it in the list and by pressing the Set Position Button. \nA location name can be edited by double-click or by pressing F2')
         self.labelWaypoints.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,8,2,1,2)
+        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,8,0,1,2)
         self.labelCommands.setStyleSheet('font-weight: bold;')
         self.labelCommands.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
@@ -145,23 +141,25 @@ class Mapping(QWidget):
         self.sepPositionSection3.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection3.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,10,0,4,2) 
+        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,10,2,4,2) 
+        self.listWaypoints.setFixedWidth(130)
 
-        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,10,2,1,2)
-        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,13,2,1,2)    
+        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,10,0,1,2)
+        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,13,0,1,2)    
         #self.buttonReset.clicked.connect(self.setWaypoint) 
-        self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,12,2,1,2)
+        self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,12,0,1,2)
         self.buttonSave.clicked.connect(self.saveWaypoint)    
-        self.buttonMoveTo= QPushButton('Move To'); self.layoutPosition.addWidget(self.buttonMoveTo,11,2,1,2)    
+        self.buttonMoveTo= QPushButton('Move To'); self.layoutPosition.addWidget(self.buttonMoveTo,11,0,1,2)    
                                                                           
-        self.lineXmove.editingFinished.connect(lambda: setattr(self.settingsStage, 'moveX', float(self.lineXmove.text())))
-        self.lineYmove.editingFinished.connect(lambda: setattr(self.settingsStage, 'moveY', float(self.lineYmove.text())))
-        self.lineZmove.editingFinished.connect(lambda: setattr(self.settingsStage, 'moveZ', float(self.lineZmove.text())))
+        self.lineXmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveX', float(self.lineXmove.text())))
+        self.lineYmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveY', float(self.lineYmove.text())))
+        self.lineZmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveZ', float(self.lineZmove.text())))
 
+    #region: Mapping
     def widgetMapping(self):
         self.groupMapSize= QGroupBox('Map Settings'); self.groupMapSize.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         self.layoutMapSize= QGridLayout(self.groupMapSize)
-        self.layoutMain.addWidget(self.groupMapSize)
+        self.layoutFrame.addWidget(self.groupMapSize)
 
         self.labelX= QLabel('X'); self.layoutMapSize.addWidget(self.labelX,0,1)
         self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
@@ -195,7 +193,7 @@ class Mapping(QWidget):
 
         self.comboPattern= QComboBox(); self.layoutMapSize.addWidget(self.comboPattern,3,1,1,1)
         self.comboPattern.addItems(['Snake', 'Straight'])
-        self.comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMap, 'pattern', self.comboPattern.currentText()))
+        self.comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'pattern', self.comboPattern.currentText()))
        
         self.labelMethod= QLabel('Method'); self.layoutMapSize.addWidget(self.labelMethod, 4,0)
         self.labelMethod.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
@@ -208,23 +206,25 @@ class Mapping(QWidget):
         self.comboMap.setCurrentIndex(0)
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: self.groupApproach.setTitle(f'{self.comboMap.currentText()} Settings'))
-        self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMap, 'mode', self.comboMap.currentIndex()))
+        self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
     
-        self.lineXdistance.editingFinished.connect(lambda: setattr(self.settingsMap, 'dX', float(self.lineXdistance.text())))
-        self.lineYdistance.editingFinished.connect(lambda: setattr(self.settingsMap, 'dY', float(self.lineYdistance.text())))
-        self.lineXlandings.editingFinished.connect(lambda: setattr(self.settingsMap, 'nX', int(self.lineXlandings.text())))
-        self.lineYlandings.editingFinished.connect(lambda: setattr(self.settingsMap, 'nY', int(self.lineYlandings.text())))
+        self.lineXdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dX', float(self.lineXdistance.text())))
+        self.lineYdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dY', float(self.lineYdistance.text())))
+        self.lineXlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nX', int(self.lineXlandings.text())))
+        self.lineYlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nY', int(self.lineYlandings.text())))
    
+    #region: Stack utility
     def widgetStack(self):
 
         self.stackMap= QStackedWidget()
-        self.layoutMain.addWidget(self.stackMap)
+        self.layoutFrame.addWidget(self.stackMap)
         self.labelDefault= QLabel()
         self.stackMap.addWidget(self.labelDefault)
-        self.stackMap.addWidget(self.widgetHopping())
+        self.stackMap.addWidget(self.widgetSECCM())
         self.stackMap.setCurrentIndex(0)
 
-    def widgetHopping(self):
+    #region: SECCM
+    def widgetSECCM(self):
         self.groupApproach= QGroupBox('Approach Settings'); self.groupApproach.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         self.layoutGroupApproach= QVBoxLayout(); self.groupApproach.setLayout(self.layoutGroupApproach)
         self.layoutApproach= QGridLayout(); self.layoutGroupApproach.addLayout(self.layoutApproach)
@@ -236,7 +236,7 @@ class Mapping(QWidget):
         self.labelSpeed.setToolTip('Set the piezo speed for tip approach (0.1 to 5 \u03bcm/s). Higher speed (>1 \u03bcm/s), increases the likelihood of a tip crash!')
         self.lineSpeed.setText('1')
         self.lineSpeed.setFixedWidth(110)
-        self.lineSpeed.editingFinished.connect(lambda: setattr(self.settingsApproach, 'speed', float(self.lineSpeed.text())))
+        self.lineSpeed.editingFinished.connect(lambda: setattr(self.settingsSECCM, 'speed', float(self.lineSpeed.text())))
 
         self.labelRetract= QLabel('Retract by'); self.layoutApproach.addWidget(self.labelRetract,1,0)
         self.labelRetract.setToolTip('Set the height at which to retract the piezo (hopping) between landings.')
@@ -245,7 +245,7 @@ class Mapping(QWidget):
         self.lineRetract= QLineEdit(); self.layoutApproach.addWidget(self.lineRetract,1,1)
         self.lineRetract.setText('50')
         self.lineRetract.setFixedWidth(110)
-        self.lineRetract.editingFinished.connect(lambda: setattr(self.settingsApproach, 'retract', int(self.lineRetract.text())))   
+        self.lineRetract.editingFinished.connect(lambda: setattr(self.settingsSECCM, 'retract', int(self.lineRetract.text())))   
 
         self.labelApproach=QLabel('Stop Criteria'); self.layoutApproach.addWidget(self.labelApproach, 2,0)
         self.labelApproach.setToolTip(
@@ -260,7 +260,7 @@ class Mapping(QWidget):
         self.comboApproach.addItem('Potentiostatic')
         self.comboApproach.addItem('Alternating Current')
         self.comboApproach.currentIndexChanged.connect(lambda: self.stackApproach.setCurrentIndex(self.comboApproach.currentIndex()))
-        self.comboApproach.currentIndexChanged.connect(lambda: setattr(self.settingsApproach, 'stop', self.comboApproach.currentIndex()))
+        self.comboApproach.currentIndexChanged.connect(lambda: setattr(self.settingsSECCM, 'stop', self.comboApproach.currentIndex()))
 
         self.sep1= QFrame(); self.layoutApproach.addWidget(self.sep1,3,0,1,3) 
         self.sep1.setFrameShape(QFrame.Shape.HLine)
@@ -287,7 +287,7 @@ class Mapping(QWidget):
 
         self.lineE= QLineEdit(); self.layoutPot.addWidget(self.lineE,1,1)
         self.lineE.setText('0.1')
-        self.lineE.editingFinished.connect(lambda: setattr(self.settingsApproach, 'Eapp', float(self.lineE.text())))
+        self.lineE.editingFinished.connect(lambda: setattr(self.settingsSECCM, 'Eapp', float(self.lineE.text())))
         self.label_E_unit= QLabel("V"); self.layoutPot.addWidget(self.label_E_unit,1,2)
 
         self.labelI= QLabel('Current limit'); self.layoutPot.addWidget(self.labelI,2,0) 
@@ -295,14 +295,15 @@ class Mapping(QWidget):
 
         self.lineI= QLineEdit(); self.layoutPot.addWidget(self.lineI,2,1)
         self.lineI.setText('1e-3')
-        self.lineI.editingFinished.connect(lambda: setattr(self.settingsApproach, 'Istop', float(self.lineI.text())))
+        self.lineI.editingFinished.connect(lambda: setattr(self.settingsSECCM, 'Istop', float(self.lineI.text())))
         self.label_I_unit= QLabel("A"); self.layoutPot.addWidget(self.label_I_unit,2,2)
         
         return self.framePot
     
+    #region saveWaypoints
     def saveWaypoint(self):
          coordinates= [float(self.labelXpos.text()), float(self.labelYpos.text()), float(self.labelZpos.text())]
-         listItem= QListWidgetItem(f'Position {self.listWaypoints.count()}: ({self.labelXpos.text()},{self.labelYpos.text()},{self.labelZpos.text()})')
+         listItem= QListWidgetItem(f'Pos[{self.listWaypoints.count()}]: ({self.labelXpos.text()},{self.labelYpos.text()},{self.labelZpos.text()})')
          listItem.setFlags(listItem.flags() | Qt.ItemFlag.ItemIsEditable) 
          listItem.setData(Qt.ItemDataRole.UserRole, coordinates)
          listItem.setToolTip(f'Saved Position: ({self.labelXpos.text()},{self.labelYpos.text()},{self.labelZpos.text()})')

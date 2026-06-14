@@ -1,10 +1,8 @@
 import os
 import sys
-import random
 import time
 
 from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
-from typing import TypedDict
 import functools
 
 import kbio.kbio_types as KBIO
@@ -13,6 +11,7 @@ from kbio.kbio_api import KBIO_api
 
 from BiologicAPI.kbio.kbio_tech import get_experiment_data
 from BiologicAPI.kbio.kbio_tech import get_info_data
+from kbio.utils import exception_brief
 
 from BiologicAPI.CA_biologic import ca_parm
 from BiologicAPI.OCP_biologic import ocp_parm
@@ -30,9 +29,9 @@ def _exception(message:str, finish:bool=False):
 
                 except Exception as err:
                     # Handle the exception gracefully
-                    print(f"[ERROR] {message}")
+                    print(f"[ERROR] {message}: {exception_brief(err, self.verbosity >= 1)}")
                     # Optional: Return a default fallback value or re-raise with 'raise'
-                    return None 
+                    return False
            
                 finally:
                     if finish:
@@ -50,7 +49,7 @@ class Biologic(QObject):
     finished= Signal() # Signal that process is over
     echemData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
     biologic= Signal(object) # Potentiostat api information to connect to instrument
-    message= Signal(str) # Any 'str' to communicate with user 
+    connectionStatus= Signal(bool)
 
     def __init__(self, instrument, techniqueList=None):
         super().__init__()
@@ -63,9 +62,10 @@ class Biologic(QObject):
         self.techniqueList= techniqueList
         self.runBiologic= True
 
+        
     #region: connectBiologic
     @_exception('Connection to VMP-300: Check if instrument if turned ON.', finish=True)
-    def connectBiologic(self, ip_address= "192.168.2.2", channel_nb= 1):
+    def connectBL(self, ip_address= "192.168.2.2", channel_nb= 1):
 
         address= ip_address
         self.channel= channel_nb
@@ -131,6 +131,7 @@ class Biologic(QObject):
             sys.exit(-1)
 
         self.biologic.emit({'api':self.api, 'channel':1, 'board_type': self.board_type, 'id_': self.id_})
+        self.connectionStatus.emit(True)
         print('[EVENT] Connected to VMP-300!')
   
     #region: loadTechnique
@@ -152,53 +153,50 @@ class Biologic(QObject):
             case _:
                 print("> Invalid technique or settings")
 
-        if tech_file and ecc_parms:
-            self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
+        self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
 
     @_exception('Starting Channel')
     def startChannel(self):
         self.api.StartChannel(self.id_, self.channel)
 
-    def disconnectBiologic(self):
+    def disconnectBL(self):
         self.api.Disconnect(self.id_)
         print('[VMP-300] Disconnected')
 
     #region: runEchem
     @_exception('Running Echem technique', finish=True)
     def runEchem(self):
-        
+
         #Do all technique settings obtained from the experiment loadout tree
-        if self.techniqueList:
-            for tech in self.techniqueList:
-                            
-                self.loadTechnique(tech)
-                self.startChannel()
-                print(f'[VMP-300] Running: {tech.technique}')
+  
+        for tech in self.techniqueList:
+                        
+            self.loadTechnique(tech)
+            self.startChannel()
+            print(f'[VMP-300] Running: {tech.technique}')
 
-                #while loop will emit echem data while potentiostat is running
-                while True:
-                    data= self.api.GetData(self.id_, self.channel)
-                    status, self.tech_name= get_info_data(self.api, data)
-                    for output in get_experiment_data(self.api, data, self.tech_name, self.board_type):
+            #while loop will emit echem data while potentiostat is running
+            while True:
+                data= self.api.GetData(self.id_, self.channel)
+                status, tech_name= get_info_data(self.api, data)
+                for output in get_experiment_data(self.api, data, tech_name, self.board_type):
 
-                        self.echemData.emit(output)
+                    self.echemData.emit(output)
 
-                    if status == "STOP":
-                        print(f'[VMP-300] Succesful {tech.technique} Measurement')
-                        break
-                    if not self.runBiologic:
-                        print(f'[VMP-300] {tech.technique} Measurement Stopped by User')
-                        break
-        
-            self.finished.emit()
+                if status == "STOP":
+                    print(f'[VMP-300] Succesful {tech.technique} Measurement')
+                    break
+                if not self.runBiologic:
+                    print(f'[VMP-300] {tech.technique} Measurement Stopped by User')
+                    break
+    
+        self.finished.emit()
 
     def stopBiologic(self):
         self.runBiologic= False
 
     def _clean(self):
         self.finished.emit()
-
-    
 
 if __name__ == '__main__':
 

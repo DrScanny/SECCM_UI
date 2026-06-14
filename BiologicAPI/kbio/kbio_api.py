@@ -39,20 +39,20 @@ from ctypes import c_int32
 from ctypes import c_uint8
 from ctypes import c_uint32
 
-import BiologicAPI.kbio.kbio_types as KBIO
-from BiologicAPI.kbio.c_utils import c_buffer
-from BiologicAPI.kbio.c_utils import c_double_p
-from BiologicAPI.kbio.c_utils import c_float_p
-from BiologicAPI.kbio.c_utils import c_int32_p
-from BiologicAPI.kbio.c_utils import c_uint32_p
-from BiologicAPI.kbio.utils import exception_brief
-from BiologicAPI.kbio.utils import pp_plural
-from BiologicAPI.kbio.utils import warn_diff
+import kbio.kbio_types as KBIO
+from kbio.c_utils import c_buffer
+from kbio.c_utils import c_double_p
+from kbio.c_utils import c_float_p
+from kbio.c_utils import c_int32_p
+from kbio.c_utils import c_uint32_p
+from kbio.utils import exception_brief
+from kbio.utils import pp_plural
+from kbio.utils import warn_diff
 
 # ==============================================================================#
 
-class KBIO_api:
 
+class KBIO_api:
     def GetLibVersion(self):
         try:
             version = c_buffer(32)
@@ -62,19 +62,13 @@ class KBIO_api:
             print(exception_brief(e, 1))
 
     def Connect(self, server, timeout=5):
-
-        try:
-       
-            id_ = c_int32()
-            info = self.DeviceInfo()
-            error = self.BL_Connect(server.encode(), timeout, id_, info)
-            if error != KBIO.ERROR.NOERROR.value:
-                raise ConnectionError()
-            # info is only provided by this call, so it must be kept by caller for further use.
-            return id_.value, info
-        
-        except KBIO_api.BL_Error as err:
-            print(err)
+        id_ = c_int32()
+        info = self.DeviceInfo()
+        error = self.BL_Connect(server.encode(), timeout, id_, info)
+        if error != KBIO.ERROR.NOERROR.value:
+            raise ConnectionError()
+        # info is only provided by this call, so it must be kept by caller for further use.
+        return id_.value, info
 
     def GetUSBDeviceInfos(self, index):
         company = c_buffer(128)
@@ -105,6 +99,7 @@ class KBIO_api:
 
     def Disconnect(self, id_):
         self.BL_Disconnect(id_)
+        print('disconnected')
 
     def GetChannelsPlugged(self, id_):
         ch_map = KBIO.ChannelsArray()

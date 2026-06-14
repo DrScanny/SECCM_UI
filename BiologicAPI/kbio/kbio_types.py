@@ -30,7 +30,7 @@ from ctypes import c_uint32
 from dataclasses import dataclass
 from enum import Enum
 
-from BiologicAPI.kbio.c_utils import POD
+from kbio.c_utils import POD
 
 # ==============================================================================#
 
@@ -444,6 +444,8 @@ class I_RANGE(Enum):
     I_RANGE_100mA = 9  # 100 mA VMP3
     I_RANGE_1A = 10  # 1 A VMP3
     I_RANGE_BOOSTER = 11  # Booster VMP3
+    I_RANGE_AUTO = 12  # Auto range VMP3
+
 
 # ------------------------------------------------------------------------------#
 

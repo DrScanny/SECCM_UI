@@ -1,13 +1,15 @@
 from dataclasses import dataclass
 
 @dataclass
-class Stage():
+class Move():
     moveX: float= 0.0 #Distance to move olympus stage in X position -65-65
     moveY: float= 0.0 #Distance to move olympus stage in Y position -65-65
     moveZ: float= 0.0 #Distance to move mercury stage in Z position 0-25
+    XYspeed: float= 5.0 #Speed for XY stage
+    Zspeed: float= 1.0 #Speed for Zstage
 
 @dataclass
-class Map():
+class Mapping():
     pattern: str= 'Snake' #Pattern to follow when mapping
     mode: int= 0 #Mapping mode: 0-> None, 1-> SECCM, 2-> SECM
     dX: int= 0 #Distance between landings in X always positive
@@ -24,6 +26,10 @@ class SECCM():
     stop: int= 0 #Technique to use for approach stop: 0->OCP, 1-> DC Potentiostatic, 2-> AC 
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
+
+@dataclass
+class SECM():
+    speed: float= 1 #Approach speed in um
 
 @dataclass
 class CA():
