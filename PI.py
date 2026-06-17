@@ -45,7 +45,7 @@ class PI(QObject):
         connection= Signal(bool)
         finished= Signal()              
 
-        def __init__(self, PIdevice:dict[str,GCSDevice], move:list[float]=[0.0, 0.0, 0.0]):
+        def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], move:list[float]=[0.0, 0.0, 0.0]):
             super().__init__()
 
             self.XYstage= PIdevice['XY']
@@ -55,6 +55,21 @@ class PI(QObject):
             self.Ymove= move[1]
             self.Zmove= move[2]
             self.currentPosition= [0.0, 0.0, 0.0]
+            self.threadInstance= threadInstance
+
+        def debug(self):
+            print(f'Moving by [{self.Xmove}, {self.Ymove}, {self.Zmove}]')
+            print('Moving...')
+            i=0
+            while i<60:
+                i+=1
+                print(i)
+                time.sleep(1)
+                if self.threadInstance.isInterruptionRequested():
+                    self.finished.emit()
+                    return
+            
+            self.finished.emit()
 
         @_exception()
         def moveXYZ(self):
@@ -69,36 +84,21 @@ class PI(QObject):
             self.Zstage.MVR('1', self.Zmove)
 
             #Wait until Stages have stopped moving
-            self._wait(self.XYstage)
-            self._wait(self.Zstage)
-
+                    
+            self._wait(interrupt=True)
             self._updatePosition(position= True)
-      
 
         @_exception()
         def resetXYZ(self):
 
             if self.XYstage.IsConnected():
-                self.XYstage.gcs.commands.FRF()
+                self.XYstage.gcscommands.FRF()
 
             if self.Zstage.IsConnected():
                 self.Zstage.gcscommands.FPL()
 
-            self._wait(self.XYstage)
-            self._wait(self.Zstage)
-
+            self._wait()
             print('[POSITIONERS] Reset!')
-            self._updatePosition()
-
-        @_exception()
-        def stopXYZ(self):
-            if self.XYstage.IsConnected():
-                self.XYstage.gcscommands.HLT(noraise=True)
-
-            if self.Zstage.IsConnected():
-                self.Zstage.gcscommands.HLT(noraise=True)
-
-            print('[POSITIONERS] Motion Stopped by User!')
             self._updatePosition()
        
         @_exception()
@@ -110,9 +110,7 @@ class PI(QObject):
             if self.Zstage.IsConnected():
                 self.Zstage.gcscommands.MOV('1', self.Zmove)
 
-            self._wait(self.XYstage)
-            self._wait(self.Zstage)
-         
+            self._wait(interrupt=True)
             self._updatePosition(position= True)
 
         def _updatePosition(self, position:bool =False):
@@ -124,12 +122,30 @@ class PI(QObject):
 
             self.finished.emit()
 
-        def _wait(self, PIdevice:GCSDevice):
+        def _wait(self, interrupt:bool= False):
             # IsMoving returns an ordered dict: True if moving for each axis of the positioner. 
             # The dict values are turned into a list and then if any values are true the while loop continues until all axis have stopped
+
+            if interrupt:
+
+                while any(list(self.XYstage.gcscommands.IsMoving().values())):
+                    if self.threadInstance.isInterruptionRequested():
+                        self.XYstage.gcscommands.HLT(noraise=True)
+                        print('[DEBUG] *moveXYZ* Interrupted by User')
+                        return
+
+                while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                    if self.threadInstance.isInterruptionRequested():
+                        self.Zstage.gcscommands.HLT(noraise=True)
+                        print('[DEBUG] *moveXYZ* Interrupted by User')
+                        return
+            else:
             
-            while any(list(PIdevice.gcscommands.IsMoving().values())):
-                time.sleep(0.5)
+                while any(list(self.XYstage.gcscommands.IsMoving().values())):
+                    time.sleep(0.5)
+
+                while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                    time.sleep(0.5)
             
         def _clean(self):
             self.finished.emit()

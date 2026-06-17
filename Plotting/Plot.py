@@ -1,15 +1,24 @@
 from PySide6.QtCore import Qt, QEvent
-from PySide6.QtWidgets import (QWidget, QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
+from PySide6.QtGui import QColor, QIcon
+from PySide6.QtWidgets import (QCheckBox, QWidget, QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
-                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
+                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget, QGroupBox,
                                QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
                                QTreeWidget, QComboBox, QLineEdit, QFileDialog, QSizePolicy, QStyle, QSpinBox)
 
 import sys
 import numpy as np
 import pyqtgraph as pg
+import time
 from datetime import datetime
+
 from pyqtgraph.exporters import ImageExporter
+from itertools import cycle
+
+from Plotting.PlotTree import DataTree
+from Plotting.colourpalettepopup import ColorPopup, PaletteButton
+
+from Plotting import UI_Settings
 
 """
 Section to show data acquired through plots, it will include 2 parts:
@@ -27,61 +36,174 @@ I- Graph area
 
    1st assignment is to do basic live plotting see below plot1D_Live(self)
 """
+#Popwindow that loads data from datatree (not yet functional)
+class DataWindow(QWidget):
+    def __init__(self, echemData):
+        super().__init__()
+
+        self.setWindowTitle(echemData.name)
+        self.resize(800, 600)
+
+        layout = QVBoxLayout(self)
+
+        self.plotWidget = pg.PlotWidget()
+        layout.addWidget(self.plotWidget)
+
+        x = echemData.t
+        y = echemData.Ewe
+
+        self.plotWidget.plot(x, y, pen='k')
+
+
+
 class Plot(QWidget):
     def __init__(self):
         super().__init__()
-
-        self.mainLayout = QVBoxLayout()
-        self.setLayout(self.mainLayout)
-        self.setWindowTitle("Main Window")
-        
-        #electrochem techniques
-        self.technique = None
+        #region: variables
+         #electrochem techniques
         self.pixel_counter = 0
         self.current_pixel_id = 0
         self.last_position = None
+        self.selected_technique = None
+        self.live_curve = None
 
-             #Assigns selected techniques to the proper variables as defined in the parsed_row dictionary
-        self.technique_axes = {"OCP": ("t", "Ewe"),
-                                "CA": ("t", "Iwe"),
-                                "CP": ("t", "Ewe"),
-                                "CV": ("Ewe", "Iwe")}
-
-        #current data list        
-        self.x_data= []
+        #current data list       
+        self.x_variable= 't'
+        self.y_variable= 'Ewe'
+        self.x_data = []
         self.y_data = []
-        
-        #save datasets in a series
-        self.saved_datasets = {}
+
+        #region: UI setup
+        self.mainLayout = QVBoxLayout()
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.mainLayout.setSpacing(0)
+        self.setLayout(self.mainLayout)
+        self.setWindowTitle("Main Window")
         
         #controls on top
         self.controlPanel = QFrame()
-        self.controlPanel.setSizePolicy(QSizePolicy.Policy.Preferred,
-                                        QSizePolicy.Policy.Fixed )
-       
+        self.controlPanel.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed
+        )
         self.controlLayout = QHBoxLayout(self.controlPanel)
+        self.controlLayout.setContentsMargins(5, 5, 0, 0)
+        self.controlLayout.setSpacing(2)
         self.mainLayout.addWidget(self.controlPanel)
 
+        #Set style for all buttons
+        toolbar_style = """
+        QPushButton {
+            border: none;
+            background: transparent;
+            padding: 2px;
+        }
+        QPushButton:hover {
+            background-color: rgba(100,100,100,40);
+        }
+        QPushButton:pressed {
+            background-color: rgba(100,100,100,80);
+        }
+        """
+
         #save as image button
-        self.saveButton = QPushButton("Save Plot as Image")
+        self.saveButton = QPushButton()
+        self.saveButton.setIcon(QIcon("icons/save"))
         self.saveButton.clicked.connect(self.save_plot)
         self.controlLayout.addWidget(self.saveButton)
+        
+        #region: line and scatterplot options layout
+        #Line options -------
+        self.linegroup = QGroupBox("Line Options")
+        self.lineplotoptionslayout = QHBoxLayout()
+        #Option to disable lines
+        """
+        self.linedisableoption = QCheckBox()
+        self.linedisableoption.setChecked(True)
+        self.lineplotoptionslayout.addWidget(self.linedisableoption)
+        """
+        #lineplot color selector
+        self.linecolourSelector = QPushButton()
+        self.linecolor = 'red'
+        self.linecolourSelector.setIcon(QIcon("icons/colourwheelicon"))
+        self.lineplotoptionslayout.addWidget(self.linecolourSelector)
+        self.linecolourSelector.clicked.connect(self.show_color_popup)
+        #lineplot shape selector
+        self.lineshapeSelector = QPushButton()
+        self.lineshapeSelector.setIcon(QIcon("icons/dashedline"))
+        self.lineplotoptionslayout.addWidget(self.lineshapeSelector)
+        # Add the line options to the main layout
+        self.linegroup.setLayout(self.lineplotoptionslayout)
+        self.controlLayout.addWidget(self.linegroup)
 
-        #colour
-        self.controlLayout.addWidget(QLabel("Plot Colour"))
-        self.colourSelector = QComboBox()
-        self.colourSelector.addItems(['Black', 'Red', 'Green', 'Blue'])
-        self.colourSelector.currentTextChanged.connect(self.change_colour)
-        self.controlLayout.addWidget(self.colourSelector)
-        self.color = self.colourSelector.currentText()
+        #Scatterplot options -------
+        self.scattergroup = QGroupBox("Marker Options")
+        self.scatterplotoptionslayout = QHBoxLayout()
+        #Option to disable markers
+        self.scatterenableoption = QCheckBox()
+        self.scatterenableoption.setChecked(False)
+        self.scatterenableoption.stateChanged.connect(self.change_scatter_state)
+        self.scatterplotoptionslayout.addWidget(self.scatterenableoption)
+        #Scatterplot color selector
+        self.scattercolourSelector = QPushButton()
+        self.scattercolourSelector.setIcon(QIcon("icons/colourwheelicon"))
+        self.scatterplotoptionslayout.addWidget(self.scattercolourSelector)
+        #Scatterplot shape selector
+        self.scattershapeSelector = QPushButton()
+        self.scattershapeSelector.setIcon(QIcon("icons/markershapeicon"))
+        self.scatterplotoptionslayout.addWidget(self.scattershapeSelector)
+        #Scatterplot marker size selector
+        """
+        self.markersizeSelector = QSpinBox()
+        self.markersizeSelector.setRange(1,20)
+        self.markersizeSelector.setValue(2)
+        self.markersizelayout.addWidget(self.markersizeSelector)
+        self.scatterplotoptionslayout.addLayout(self.markersizelayout)
+        """
+        # Add the scattergroup box widget to the main layout
+        self.scattergroup.setLayout(self.scatterplotoptionslayout)
+        self.controlLayout.addWidget(self.scattergroup)
+        #endregion
+        #keep track of scatter parameters
+        self.scatterChecked = False
+        self.scatterSize = 5
+        self.scatterShape = 'o'
+        #self.scatterColor
 
-        #plot type
-        self.controlLayout.addWidget(QLabel("Plot Type"))
+        #zoom in button
+        self.zoomInButton = QPushButton()
+        self.zoomInButton.setIcon(QIcon("icons/zoomin"))
+        #self.zoomInButton.setFixedSize(34, 34)
+        self.zoomInButton.setToolTip("Zoom In")
+        self.zoomInButton.clicked.connect(self.zoom_in)
+        self.controlLayout.addWidget(self.zoomInButton)
 
-        self.plotTypeSelector = QComboBox()
-        self.plotTypeSelector.addItems(["Line", "Scatter"])
-        self.plotTypeSelector.currentTextChanged.connect(self.change_plot_type)
-        self.controlLayout.addWidget(self.plotTypeSelector)
+        #zoom out button
+        self.zoomOutButton = QPushButton()
+        self.zoomOutButton.setIcon(QIcon("icons/zoomout"))
+        #self.zoomOutButton.setFixedSize(34, 34)
+        self.zoomOutButton.setToolTip("Zoom Out")
+        self.zoomOutButton.clicked.connect(self.zoom_out)
+        self.controlLayout.addWidget(self.zoomOutButton)
+
+        #select zoom
+        self.rectZoomButton = QPushButton()
+        self.rectZoomButton.setIcon(QIcon("icons/zoomrectangle"))
+        #self.rectZoomButton.setFixedSize(34, 34)
+        self.rectZoomButton.setToolTip("Rectangle Select Zoom")
+        self.rectZoomButton.setCheckable(True)
+        self.rectZoomButton.clicked.connect(self.toggle_rect_zoom)
+        self.controlLayout.addWidget(self.rectZoomButton)
+
+        #Set default style to all buttons
+        self.linecolourSelector.setStyleSheet(toolbar_style)
+        self.lineshapeSelector.setStyleSheet(toolbar_style)
+        self.scattercolourSelector.setStyleSheet(toolbar_style)
+        self.scattershapeSelector.setStyleSheet(toolbar_style)
+        self.saveButton.setStyleSheet(toolbar_style)
+        self.zoomInButton.setStyleSheet(toolbar_style)
+        self.zoomOutButton.setStyleSheet(toolbar_style)
+        self.rectZoomButton.setStyleSheet(toolbar_style)
 
         #add spacing
         self.controlLayout.addSpacing(20)
@@ -93,6 +215,15 @@ class Plot(QWidget):
         self.plotSplitter = QSplitter(Qt.Orientation.Horizontal)
         self.mainLayout.addWidget(self.plotSplitter)
 
+        #region: datatree
+        #creating data tree
+        self.dataTree= DataTree()
+        self.plotSplitter.addWidget(self.dataTree)
+
+        #if an item in the data tree is clicked, load the relevant dataset
+        #self.dataTree.tree.itemClicked.connect(self.tree_item_clicked)
+        #endregion
+        
         self.framePlot = QFrame()
         self.plotSplitter.addWidget(self.framePlot)
         self.plotSplitter.setSizes([250,900])
@@ -100,6 +231,7 @@ class Plot(QWidget):
         self.layoutPlot = QVBoxLayout(self.framePlot)
         self.plotWindow = pg.PlotWidget()
         self.layoutPlot.addWidget(self.plotWindow)
+        self.plotWindow.getPlotItem().layout.setContentsMargins(10, 20, 20, 10)
 
         #coordinate display label
         self.coordinateslabel = QLabel("Coordinates: ")
@@ -109,7 +241,8 @@ class Plot(QWidget):
 
         #track state
         self.plot_type = "Line"
-        self.plot_item = None
+        self.plot_items = []
+        #endregion: UI setup
 
         #connect mouse movement for line hover support
         self.plotWindow.scene().sigMouseMoved.connect(self.mouse_moved)
@@ -117,6 +250,16 @@ class Plot(QWidget):
         #setup plot
         self.setup_plot()
 
+        #region: colour popup options
+        #pull palettes from colourpalettepopup.py and put them into a list of lists. Use the format self.palettes[0][2] to get the 3rd colour of the first palette
+        self.linecolorpopup = ColorPopup()
+
+        #set default palette to palette1
+        self.currentpalette = self.linecolorpopup.palette_data[0]
+        #connect selected button to palette_clicked function, which returns the new palette (color list)
+        self.linecolorpopup.paletteSelected.connect(self.palette_clicked)
+
+        #endregion
 
     def setup_plot(self):
     
@@ -132,8 +275,8 @@ class Plot(QWidget):
         self.plotWindow.getAxis('bottom').setTextPen('k')
 
         #set labels of the plot (x and y)
-        self.plotWindow.setLabel('left', 'y_var')
-        self.plotWindow.setLabel('bottom', 'x_var')
+        #self.plotWindow.setLabel('left', 'y_var')
+        #self.plotWindow.setLabel('bottom', 'x_var')
 
         #turn off the grid
         self.plotWindow.showGrid(x=False, y=False)
@@ -144,7 +287,6 @@ class Plot(QWidget):
             movable=False,
             pen=pg.mkPen((150, 150, 150), width=1, style=Qt.PenStyle.DashLine)
         )
-
         self.plotWindow.addItem(self.vLine, ignoreBounds=True)
 
         #add horizontal hover line
@@ -155,82 +297,121 @@ class Plot(QWidget):
         )
         self.plotWindow.addItem(self.hLine, ignoreBounds=True)
 
-        self.create_plot_item()
-
-    def create_plot_item(self):
-        self.plotWindow.clear()
-
-        #readd hover lines after clearing plot
-        self.plotWindow.addItem(self.vLine, ignoreBounds=True)
-        self.plotWindow.addItem(self.hLine, ignoreBounds=True)
-
-        #redraw the plot based on the selected chart type (line or scatter)
-        if self.plot_type == "Line":
-
-            self.plot_item = self.plotWindow.plot(
-                pen=pg.mkPen(
-                    color=self.color,
-                    width=1.8,
-                    cosmetic=True,
-                    cap=Qt.RoundCap,
-                    join=Qt.RoundJoin
-                ),
-                antialias=True
-            )
-
-        else:
-            self.plot_item = pg.ScatterPlotItem(
-                size=5,
-                brush=pg.mkBrush(self.color),
-                pen=pg.mkPen(None),
-                hoverable=True,
-                hoverSize=12,
-                hoverPen=pg.mkPen('black', width=2)
-            )
-
-            self.plotWindow.addItem(self.plot_item)
-
-            #hover only for scatter plots
-            self.plot_item.sigHovered.connect(self.show_hover_data)
-
-        if self.x_data:
-            self.plot_item.setData(self.x_data, self.y_data)
-
-     #method that updates the graph as data is being acquired from the potentiostat
-    def add_dataPoint(self, tech, parsed_row):
-
-        technique= tech.technique
+        self.set_pen()
+    
+    #region: set pen
+    def set_pen(self):
+        self.clear_plot_curves()
         
-        #Accounting for possible technique mismatch error
-        if technique not in self.technique_axes:
-            print(f"Unknown technique: {technique}")
-            return
+        if self.scatterChecked == True:
+            pen = None
+            symbol = 'o'
+            symbolBrush = 'k'
+            symbolSize = 7
+        else:
+            pen = pg.mkPen(self.linecolor, width=2)
+            symbol = None
+            symbolBrush = None
+            symbolSize = None
+    
+        
+        self.live_curve = self.plotWindow.plot(
+            [],
+            [],
+            pen=pen,
+            symbol = symbol,
+            symbolSize = symbolSize,
+            symbolBrush = symbolBrush,
+        ) 
+    #endregion
+    
+    def show_color_popup(self):
+        self.linecolorpopup.exec()
+    
+    #region: main plot update function 
+    #method that updates the graph as data is being acquired from the potentiostat
+    def add_data_point(self, parsed_row):
 
-        #update the axes if the technique changes
-        if technique != self.technique:
-
-            self.technique = technique
-
-            self.x_data.clear()
-            self.y_data.clear()
-
-            self.set_axes(technique)
-
-        x_variable, y_variable = self.technique_axes[technique]
-
-        #verify variables exist
-        if x_variable not in parsed_row or y_variable not in parsed_row:
-            print("Missing required variables in parsed_row")
-            return
+        #extract the data value based on the variable name x_variable and y_variable
+        x = parsed_row[self.x_variable]
+        y = parsed_row[self.y_variable]
 
         #add the incoming data point to the list
-        self.x_data.append(parsed_row[x_variable])
-        self.y_data.append(parsed_row[y_variable])
+        self.x_data.append(x)
+        self.y_data.append(y)
 
-        #update graph
-        self.plot_item.setData(self.x_data, self.y_data)
+        if self.live_curve:
+            self.live_curve.setData(self.x_data,self.y_data)
+
+     #set the axes of the plot based on the technique
     
+    #endregion
+
+    #region: set axes method
+    #method that sets the axes labels based on chosen techniques
+    def setAxes(self, technique):
+        
+        timeLabel = "Time (s)"
+        potentialLabel = "Potential (V)"
+        currentLabel = "Current (A)"
+        
+        if technique == 'OCP':
+            self.x_variable= 't'
+            self.y_variable= 'Ewe'
+            xLabel= timeLabel
+            yLabel= currentLabel 
+        
+        elif technique == 'CA': 
+            self.x_variable= 't'
+            self.y_variable= 'Iwe'  
+            xLabel= timeLabel
+            yLabel= potentialLabel
     
+        elif technique == 'CP': 
+            self.x_variable= 't'
+            self.y_variable= 'Ewe'  
+            xLabel= timeLabel
+            yLabel= potentialLabel
+        
+        else:
+            self.x_variable= 'Ewe'
+            self.y_variable= 'Iwe'  
+            xLabel= potentialLabel
+            yLabel= currentLabel
+        
+        #bottom two lines currently not working due to a threading error that i can't figure out 
+        #self.plotWindow.setLabel('bottom', xLabel)
+        #self.plotWindow.setLabel('left', yLabel)
+    #endregion
+
+    # Both functions below can be replaced by a single dict
+        
+    #get the index of the technique
+    """
+    
+    def returntechniqueIndex(self, technique):
+
+        if technique == 'OCP':
+            return self.ocpcount
+        
+        elif technique == 'CA':  
+            return self.cacount
+    
+        elif technique == 'CP': 
+            return self.cpcount
+        
+        elif technique == 'CV':
+            return self.cvcount
+        
+        else:
+            return None
+    """
+    
+    #if a new technique or run has started, restart plotting
+    def clearPlot(self):
+        self.x_data.clear()
+        self.y_data.clear()
+     
     #this method uses any change in commanded position to update pixel count
     def update_pixel_count(self, commanded_position):
 
@@ -249,29 +430,7 @@ class Plot(QWidget):
             self.last_position = commanded_position
     
 
-    def change_colour(self, colour):
-        if self.plot_item is None:
-            return
-
-        if self.plot_type == "Line":
-            self.plot_item.setPen(
-                pg.mkPen(
-                    color=colour,
-                    width=1.8,
-                    cosmetic=True,
-                    cap=Qt.RoundCap,
-                    join=Qt.RoundJoin
-                )
-            )
-        else:
-            self.plot_item.setBrush(pg.mkBrush(colour))
-
-    #if plot type is changed, update plot
-    def change_plot_type(self, plot_type):
-        self.plot_type = plot_type
-        self.create_plot_item()
-    
-
+    #region: save plot as image method
     #if "save as image" button is pressed, save plot as image
     def save_plot(self):
         file_name, _ = QFileDialog.getSaveFileName(
@@ -295,6 +454,71 @@ class Plot(QWidget):
     #show crosshairs again after export
         self.vLine.show()
         self.hLine.show()
+    
+    #endregion
+    
+    def clear_plot_curves(self):
+
+        for curve in self.plot_items:
+
+            self.plotWindow.removeItem(curve)
+
+        self.plot_items.clear()
+        self.plotWindow.removeItem(self.live_curve)
+    
+    """
+    def pixel_visibility_changed(
+            self,
+            item,
+            column
+    ):
+        parent = item.parent()
+
+        if parent is None:
+            return
+
+        if parent == self.dataTree.file_node:
+            return
+
+        technique = parent.text(0)
+
+        if technique != self.selected_technique:
+            return
+
+        self.load_plot_from_datatree(technique)
+    """
+    
+
+    #region: load plot from datatree
+    def load_plot(self, echemData):
+        #self.plotWindow.clear()
+
+        #IMPORTANT: this only works because each new technique node in the datatree is named with the format "CV_2". It does not allow for changing technique IDs currently
+        tech_item = self.dataTree.technique_nodes[echemData.name]
+        techniqueindex = echemData.index
+        self.setAxes(echemData.technique)
+        x_var = getattr(echemData, self.x_variable)
+        y_var = getattr(echemData, self.y_variable)
+
+        #ReDraw the curve using selected palette. modulo operator causes it to cycle 
+        if len(self.currentpalette) == 0:
+            pen = pg.mkPen(color="#0A0A0A", width=2)
+        else:
+            color = self.currentpalette[(techniqueindex - 1) % len(self.currentpalette)]
+            pen = pg.mkPen(color=color, width=2)
+
+        curve = self.plotWindow.plot(
+            x_var,
+            y_var,
+            pen=pen
+        )
+
+        self.plot_items.append(curve)
+    
+    #endregion
+
+    def palette_clicked(self, colors):
+        self.currentpalette = colors
 
     #updates the coordinate label based on where the mouse is hovering
     def show_hover_data(self, plot, points):
@@ -338,43 +562,46 @@ class Plot(QWidget):
     def generate_timestamp(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    #set the axes of the plot based on the technique
-    def set_axes(self, technique):
-
-        self.timevar = "Time (s)"
-        self.potentialvar = "Potential (V)"
-        self.currentvar = "Current (A)"
-        self.technique = technique
-        self.xvar = ""
-        self.yvar = ""
-        
-        if technique == 'OCP':
-
-            self.xvar = self.timevar 
-            self.yvar = self.potentialvar   
-        
-        elif technique == 'CA': 
-            self.xvar = self.timevar
-            self.yvar = self.currentvar
-    
-        elif technique == 'CP': 
-            self.xvar = self.timevar
-            self.yvar = self.potentialvar
-        
+    #region: set plot type
+    def change_scatter_state(self, state):
+        if state == Qt.CheckState.Checked.value:
+            self.scatterChecked = True
         else:
-            self.xvar = self.potentialvar
-            self.yvar = self.currentvar
+            self.scatterChecked = False
         
-        self.plotWindow.setLabel('bottom', self.xvar)
-        self.plotWindow.setLabel('left', self.yvar)
+        self.set_pen()
+    
+    #endregion
+    
+    #region: zoom functions
+    def zoom_in(self):
+
+        vb = self.plotWindow.getPlotItem().getViewBox()
+        vb.scaleBy((0.8, 0.8))
+
+    def zoom_out(self):
+
+        vb = self.plotWindow.getPlotItem().getViewBox()
+        vb.scaleBy((1.25, 1.25))
+
+    def toggle_rect_zoom(self):
+
+        vb = self.plotWindow.getPlotItem().getViewBox()
+
+        if self.rectZoomButton.isChecked():
+
+            vb.setMouseMode(pg.ViewBox.RectMode)
+
+        else:
+
+            vb.setMouseMode(pg.ViewBox.PanMode)
+    
+    #endregion
 
 
 if __name__ == '__main__':
     app = QApplication([])
     main = Plot()
-    
-    #temporary
-    main.set_axes("Open Circuit Potential -OCP")
-    
     main.show()
+
     app.exec()

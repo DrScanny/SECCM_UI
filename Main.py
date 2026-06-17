@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
                                QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
@@ -8,15 +9,18 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGr
 import sys
 import time
 import functools
+import os
+import threading
 
 from BiologicAPI.Biologic import Biologic
 from ExpLoad import ExpLoad
 from Mapping import Mapping
 from EchemSettings.EchemSettings import TechSettings
 import Device
-from SECCM import SECCM_approach
+import SECCM
 from Plotting import Plot
 from PI import PI
+import UI_Settings
 
 """
 Main file for the SECCM software
@@ -35,16 +39,15 @@ class ConsoleStream(QObject): # A Class to emit any messages from Python console
 class threadInit():
     def __init__(self, workerClass, *arg):
         self.thread= QThread()
-        print(self.thread)
-        self.worker= workerClass(*arg)
-        print(self.worker)
+        self.worker= workerClass(self.thread, *arg)
 
         self.worker.moveToThread(self.thread)
         self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
- 
+
 class Main(QMainWindow):
+    triggerStop= Signal(str)
    
     def __init__(self):
         super().__init__()
@@ -52,7 +55,6 @@ class Main(QMainWindow):
         #Data storage Attributes using Treewidgets as dictionary keys
         #itemTechPair store echem settings UI instance 
         self.itemTechPair= {}
-        self.echemData={}
 
         #Main window initialization
         self.setWindowTitle("MercaThor: Electrochemical Imaging") 
@@ -61,6 +63,10 @@ class Main(QMainWindow):
         self.mainFrame_layout1= QHBoxLayout(); self.mainFrame.setLayout(self.mainFrame_layout1)
         self.mainFrame_layout2= QVBoxLayout(); self.mainFrame_layout1.addLayout(self.mainFrame_layout2)
         self.setCentralWidget(self.mainFrame)
+
+        resolution= QGuiApplication.primaryScreen().geometry() #Getting the monitor resolution
+        self.setGeometry(0, 0, int(resolution.width()/1.1), int(resolution.height()/1.5)) #Set the window geometry based on the monitor resolution
+        self.move(int(resolution.width()/2-self.frameSize().width()/2), int(resolution.height()/1.25-self.frameSize().height()))
 
         #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         #region: A- Interface
@@ -118,9 +124,9 @@ class Main(QMainWindow):
         self.console_stream= ConsoleStream()
         sys.stdout= self.console_stream
    
-
         #region: A7-Plotting
         self.plotFrame= QFrame(); self.mainFrame_layout1.addWidget(self.plotFrame)
+        self.plotFrame.setFixedWidth(800)
         self.plotLayout= QVBoxLayout(self.plotFrame)
         self.plot= Plot.Plot(); self.plotLayout.addWidget(self.plot)
        
@@ -137,12 +143,14 @@ class Main(QMainWindow):
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
 
+        self.devices.buttonStopAll.clicked.connect(self.stopAll)
+
         #Experiment Loadout commands
         self.experiments.list.itemDoubleClicked.connect(self.Main_AddTechnique)
         self.experiments.addButton.clicked.connect(self.Main_AddTechnique)
         self.experiments.tree.itemClicked.connect(self.Main_ChangeSettingsPage)
         self.experiments.buttonStart.clicked.connect(self.startMap)
-        self.experiments.buttonStop.clicked.connect(self.stopMap)
+        #self.experiments.buttonStop.clicked.connect(self.stopMap)
         #endregion
         #endregion
         
@@ -190,15 +198,22 @@ class Main(QMainWindow):
             
             self.BL= threadInit(Biologic, self.devices.BL.potentiostat, techniqueList)
             self.BL.thread.started.connect(self.BL.worker.runEchem)
-            self.BL.worker.echemData.connect(lambda echemData: self._updatePlot(echemData))
+            self.BL.worker.technique.connect(lambda technique: self.newPlot(technique))
+            #self.BL.worker.technique.connect(self.plot.setLabel)
+            self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
+            self.BL.worker.done.connect(self.plot.dataTree.storeData)
             self.BL.worker.finished.connect(lambda: self._progress({'end':'0'}))
-            self.BL.thread.start()
+          
+            if not self.BL.thread.isRunning():
+                print('running thread')
+                self.BL.thread.start()
+            else:
+                print('[ERROR] VMP-300 is busy, wait before performing another action.')
 
         except Exception as err:
             f'[ERROR] **Main|BiologicRun**: {err}.'
     
     #endregion
-
 
     #region: B3-PImove
     def PImove(self):
@@ -206,11 +221,15 @@ class Main(QMainWindow):
         try:
             move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())]
 
-            self.PI= threadInit(PI, {'XY':self.devices.XY.positioner, 'Z':self.devices.Z.positioner, 'Pz':self.devices.Pz.positioner}, move)
+            self.PI= threadInit(PI, self.devices.PIdevices, move)
             self.PI.thread.started.connect(self.PI.worker.moveXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-            self.PI.thread.start()
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
 
             self._progress({'start': 'Positioner in movement... '})
             self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
@@ -229,7 +248,11 @@ class Main(QMainWindow):
             self.PI.thread.started.connect(self.PI.worker.moveToXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-            self.PI.thread.start()
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
 
             self._progress({'start': 'Positioner in movement... '})
 
@@ -242,55 +265,100 @@ class Main(QMainWindow):
     #region: B5-PIreset
     def PIreset(self):
         try:
+
             self.PI= threadInit(PI, self.devices.PIdevices)
             self.PI.thread.started.connect(self.PI.worker.resetXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-            self.PI.thread.start()
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
             
             self._progress({'start': 'Resetting Positioners... '})
         
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-    #region: B6-PIstop
-    def PIstop(self):
-        try:
-            self.PI= threadInit(PI, self.devices.PIdevices)
-            self.PI.thread.started.connect(self.PI.worker.resetXYZ)
-            self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-            self.PI.thread.start()
-
-        except Exception as err:
-            f'[ERROR] **Main|PIstop**: {err}.'
-
-    #endregion
-
     #region: B7-**Mapping**
     def startMap(self):
+    
+        #Create savefile for data measurement
+        filePath, _ = QFileDialog.getSaveFileName(
+                                                    parent=None,
+                                                    caption="Create Save File",
+                                                    dir="",
+                                                    filter="Text Files (*.txt);;All Files (*)")
+        
+        self.filename = os.path.basename(filePath)
+
+        #clear plot
+        self.plot.clearPlot()
+
+        with open(filePath, "a") as f:
+
+            #If a new experiment has started, create a parent in the datatree with that filename
+            self.plot.dataTree.setFilename(self.filename)
 
         # Loading technique from techList
-        techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+            techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
-        match self.mapping.settingsMapping.mode:
-            case 0:
-                print("[TESTING] Echem only")
-                self.BiologicRun(techList)
+            match self.mapping.settingsMapping.mode:
+                case 0:
+                    print("[TESTING] Echem only")
+                    self.BiologicRun(techList)
+                        
+                case 1:
+                    print("[TESTING] SECCM tip down only")
                     
-            case 1:
-                print("[TESTING] SECCM tip down only")
-                self.runSECCM= SECCM_approach(self.devices.PIdevices, self.devices.potentiostat, self.mapping.settingsSECCM)
-                
-            case 2:
-                print("SECM Mapping")
+                    self.SECCM_approach()
+                    #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+                    #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+                    
+                case 2:
+                    print("SECM Mapping")
 
-    def stopMap(self):
+    def SECCM_approach(self):
+        
+        self.events= {}
+
+        self.events['ready']= threading.Event()
+        self.events['limit']= threading.Event()
+        self.events['stop']= threading.Event()
+
+        #Thread assigned to the positioners control during approach
+        self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
+        self.PI.thread.started.connect(self.PI.worker.approachPI)
+        self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+
+        #Thread assigned to the potentiostat control during approach
+        self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
+        self.BL.thread.started.connect(self.BL.worker.approachBL)
+        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique))
+        self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
+
+        self.BL.thread.start()
+        self.PI.thread.start()
+        
+    def stopAll(self):
         try:
-            self.BL.worker.stopBiologic()
-        
+            print('[DEBUG] stopAll pressed')
+            #Stopping potentiostat
+            if self.BL:
+                print('interrupting BL')
+                self.BL.thread.requestInterruption()
+
+            if self.PI:
+                self.PI.thread.requestInterruption()
+                #self.triggerStop.connect(self.PI.worker.stopPositioners)
+
+            if self.SECCM:
+                self.SECCM.BL.thread.requestInterruption()
+                self.SECCM.PI.thread.requestInterruption()
+                
         except Exception as err:
-            print(f'[ERROR] **Main|stopMap**:{err}')
-        
+            print(f'[ERROR] **Main|stopAll**:{err}')
         
     #endregion
 
@@ -318,43 +386,57 @@ class Main(QMainWindow):
             self.progress.hide()
 
     #region: C3-Plotting
-    def _updatePlot(self, data):
-        self.plot.x_data.append(data['t'])
-        self.plot.y_data.append(data['Ewe'])
-        if self.plot.plot_item:
-            self.plot.plot_item.setData(self.plot.x_data, self.plot.y_data)
+    #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
+    def newPlot(self, technique):
+        #
+        self.plot.clearPlot()
+        self.plot.setAxes(technique)
+        #Create new QTreeWidgetItem based on the 
+        self.plot.dataTree.newEntry(technique)
+       
+    #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
+    def updatePlot(self, data):
+        #Update plot with latest data
+        self.plot.add_data_point(data)
+
+        #append echemData to current run
+        self.plot.dataTree.active.t.append(data['t'])
+        self.plot.dataTree.active.Ewe.append(data['Ewe'])
+        if 'Iwe' in data:
+            self.plot.dataTree.active.Iwe.append(data['Iwe'])
+        if 'cycle' in data:
+            self.plot.dataTree.active.cycle.append(data['cycle'])
 
     """
     def closeEvent(self, event):
         # Create a confirmation dialog
         reply = QMessageBox.question(self, 'Confirm Close',
                                 "Are you sure you want to exit?",
-                                QMessageBox.Yes | QMessageBox.No,
-                                QMessageBox.No)
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             # Clean up and allow the window to close
-            try:
-                self.devices.potentiostat.disconnect()
-                print("Disconnected from VMP-300")
-            except:
-                print('Error')
 
-            if self.devices.XYstage.gcscommands.IsConnected():
-                self.devices.XYstage.gcscommands.CloseConnection()
+            if self.devices.BL.potentiostat['api']:
+                self.devices.disconnectPotentiostat(self.devices.BL)
+    
+            if self.devices.XY.positioner.gcscommands.IsConnected():
+                self.devices.XY.positioner.gcscommands.CloseConnection()
             
-            if self.devices.Zstage.gcscommands.IsConnected(): 
-                self.devices.Zstage.gcscommands.CloseConnection()
+            if self.devices.Z.positioner.gcscommands.IsConnected(): 
+                self.devices.Z.positioner.gcscommands.CloseConnection()
 
-            if self.devices.piezo.gcscommands.IsConnected():
-                self.devices.piezo.gcscommands.CloseConnection()
+            if self.devices.Pz.positioner.gcscommands.IsConnected():
+                self.devices.Pz.positioner.gcscommands.CloseConnection()
 
             event.accept() 
         else:
             # Prevent the window from closing
             event.ignore()
-        """
+   
     #endregion
+    """
 
     #region: Input
     #Contain keyboard or mouse event to execute UI commands
@@ -375,6 +457,7 @@ class Main(QMainWindow):
         else:
             super().keyPressEvent(event)
     #endregion
+
 
 if __name__ == '__main__':
     

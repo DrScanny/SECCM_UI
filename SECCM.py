@@ -2,7 +2,6 @@ import os
 import sys
 import numpy as np
 import time
-import multiprocessing
 import functools
 import threading
 from pathlib import Path
@@ -61,7 +60,7 @@ class SECCM_PI(QObject):
     connection= Signal(bool)
     finished= Signal()              
 
-    def __init__(self, PIdevice:dict[str,GCSDevice], SECCMsettings:UI_Settings.SECCM, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], SECCMsettings:UI_Settings.SECCM, event:dict[str,threading.Event]):
         super().__init__()
 
         self.XYstage:GCSDevice= PIdevice['XY']
@@ -72,62 +71,94 @@ class SECCM_PI(QObject):
         self.event_piezoReady:threading.Event= event['ready']
         self.event_piezoLimit:threading.Event= event['limit']
         self.event_stopTip:threading.Event= event['stop']
+        self.threadInstance= threadInstance
 
     #region: Approach
+
+    def debug(self):
+        print('VMP-300 doing something...')
+        i=0
+        while i<10:
+            i+=1
+            print(i)
+            time.sleep(1)
+            if self.threadInstance.isInterruptionRequested():
+                self.finished.emit()
+                return print('Interrupted by user')
+        self.finished.emit()
 
     def approachPI(self):
 
         try:
             # Counting the number of full piezo approach cycle
             counter=1
-            self.event_piezoLimit.clear()
 
             #Initializing positioners speed and position for tip down procedure
             self.Zstage.gcscommands.VEL(1, 0.01)
             self.Piezo.VEL('3', 5) 
             self.Piezo.MOV('3', 60) 
-            self.wait(self.Piezo)
+
+            while any(list(self.Piezo.gcscommands.IsMoving().values())):
+                time.sleep(1)
 
             #Primary loop, the positioners will continually move, until the stopTip event is set
             #   1- Piezo move for tip down 
             #   2- Reset the Piezo and move the Z-Stage
+
+            print('[DEBUG] piezo ready')
+            self.event_piezoReady.set()
+
             while True:
-                
                 #Starting piezo movement from 60 to 0 um for approach, 3 seconds wait to let potentiostat start beforehand
                 time.sleep(3)
-                print(f"[APPROACH] Piezo descent #{counter}")
+                print(f"[SECCM] Piezo Approaching #{counter}")
                 self.Piezo.VEL('3', self.settings.speed)
                 self.Piezo.MOV('3', 0) 
 
                 #While the Piezo is moving, stop if **Stop Criteria** is met
                 while any(list(self.Piezo.gcscommands.IsMoving().values())):
-                    if self.event_stopTip.is_set():
-                        break
+                    time.sleep(1)
                 
-                if self.event_stopTip.is_set():
-                        break 
+                    if self.event_stopTip.is_set():
+                        print('[DEBUG] Landing succesful!?')
+                        return
+                    
+                    if self.threadInstance.isInterruptionRequested():
+                        self.Piezo.gcscommands.HLT(noraise=True)
+                        print('[SECCM] Approach Interrupted by User!')
+                        return 
 
                 #If the Piezo reaches its limit without being stopped, reset the piezo and move the Z-Stage by the corresponding amount
                 #*** Set event_piezoLimit to signal potentiostat to stop during piezo reset***
-                self.event_piezoLimit.set()
+                self.event_piezoLimit.set() 
+                self.event_piezoReady.clear()
                 counter+=1
-                print("[APPROACH] Piezo limit reached")
+                print("[SECCM] Piezo Limit Reached")
             
-                self.Zstage.MOV(-0.06) 
-                self.Piezo.VEL('3', 5) 
-                self.Piezo.MOV('3', 60) 
+                self.Zstage.gcscommands.MVR('1', -0.06) 
+                self.Piezo.gcscommands.VEL('3', 5) 
+                self.Piezo.gcscommands.MOV('3', 60) 
 
                 # Waiting for positioner reset to be done
-                self.wait(self.Zstage)
+                while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                    time.sleep(1)
+                    if self.threadInstance.isInterruptionRequested():
+                        self.Zstage.gcscommands.HLT(noraise=True)
+                        print('[SECCM] Approach Interrupted by User!')
+                        return
+
                 #*** Emit signal to signal piezo have been reset to potentiostat***
-                self.event_piezoReady.set()
-                print("[APPROACH] Positioners have been reset")
+                self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3)]
+                self.position.emit(self.currentPosition)  
+                self.event_piezoLimit.clear() 
+                self.event_piezoReady.set() 
+                print("[SECCM] Positioners Reset")
 
         except GCSError as err:
             print(f'[ERROR] **SECCM|SECCM_PI|approachPI**: {err}.')
                 
         except IOError:
-            print('[ERROR] **SECCM|SECCM_PI|approachPI**: Checked if controller is turned ON.')
+            print('[ERROR] **SECCM|SECCM_PI|approachPI**: Checked if Controller is Turned ON.')
 
         except Exception as err:
             # Handle the exception gracefully
@@ -137,18 +168,10 @@ class SECCM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.clean()
             self.Zstage.gcscommands.VEL(1,1)
+            self.clean()
 
     #region: Utility 
-    @exception()
-    def wait(self, PIdevice:GCSDevice):
-        # IsMoving returns an ordered dict: True if moving for each axis of the positioner. 
-        # The dict values are turned into a list and then if any values are true the while loop continues until all axis have stopped
-        
-        while any(list(PIdevice.gcscommands.IsMoving().values())):
-            time.sleep(0.5)
-        
     def clean(self):
         self.finished.emit()
 
@@ -158,63 +181,70 @@ class SECCM_PI(QObject):
 class SECCM_BL(QObject): 
 
     finished= Signal() # Signal that process is over
-    echemData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
+    approachData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
+    technique= Signal(str)
 
-    def __init__(self, potentiostat, SECCMsettings: UI_Settings.SECCM, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, potentiostat, SECCMsettings: UI_Settings.SECCM, event:dict[str,threading.Event]):
         super().__init__()
+
+        print(potentiostat)
 
         self.channel:int= potentiostat['channel']
         self.id_= potentiostat['id_']
         self.api:KBIO_api= potentiostat['api']
         self.board_type= potentiostat['board_type']
         self.verbosity:int = 1
-        self.runBiologic:bool= True
+        self.threadInstance= threadInstance
 
         self.settings:UI_Settings.SECCM= SECCMsettings
         self.event_piezoReady:threading.Event= event['ready']
         self.event_piezoLimit:threading.Event= event['limit']
         self.event_stopTip:threading.Event= event['stop']
 
+    def debug(self):
+        print("[SECCM] VMP-300 Tip Down")
+        
+        #self.loadTechnique() 
+        self.finished.emit()
+
     #region: ApproachBL
     def approachBL(self):
 
         try:
-
             while True: #Primary While loop -> Repeat tip down measurement until trigger or max range hit
 
                 # Measurements are reset each time the piezo hits the limit
                 self.event_piezoReady.wait()
-                print("[APPROACH] VMP-300 running")
+                print("[SECCM] VMP-300 Tip Down")
                 self.loadTechnique() 
                 self.api.StartChannel(self.id_, self.channel)
-                self.event_piezoReady.clear() 
-
-                """
-                    Secondary loop -> Start acquisition and stops while positioners are resetting.
-                        1- Each time the piezo reaches the limit (60 um).
-                        2- Once the tip stop has been triggered, the whole approach is stopped. 
-                """
+                
+                #Secondary loop -> Start acquisition and stops while positioners are resetting.
+                    #1- Each time the piezo reaches the limit (60 um).
+                    #2- Once the tip stop has been triggered, the whole approach is stopped. 
+                
                 while True: 
 
                     data= self.api.GetData(self.id_, self.channel)
                     status, tech_name= get_info_data(self.api, data) 
                 
                     for output in get_experiment_data(self.api, data, tech_name, self.board_type):
-                        self.echemData.emit(output)
+                        self.approachData.emit(output)
+
                     
                         if self.tipStop(output): # Function that determine if the tip should be stopped based on the stop criteria
                             self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
-                            status= "STOP"
-                            break
+                            print('[DEBUG] Tip Down Interrupted by Stop Criteria')
+                            return
 
                     # Stop the measurement once the piezo limit is reached
                     if self.event_piezoLimit.is_set():
-                        print("[APPROACH] VMP-300 interrupted, waiting until piezo are reinitialized")
-                        break
-                    
-                    if status== "STOP":
+                        print("[DEBUG] VMP-300 interrupted, waiting until piezo are reinitialized")
                         break
 
+                    if self.threadInstance.isInterruptionRequested():
+                        return
+        
         except Exception as err:
             # Handle the exception gracefully
             print(f"[ERROR] **SECCM|SECCM_BL|approachBL**: {exception_brief(err, self.verbosity >= 1)}")
@@ -234,10 +264,12 @@ class SECCM_BL(QObject):
             match self.settings.stop:
                 case 0: #Open Circuit Potential
                     tech_file, ecc_parms= ocp_parm(self.board_type, self.api, tech)
+                    self.technique.emit('OCP')
 
-                case 1: #Potentiostatic
-                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600)
+                case 1: #Potentiostatic dt= 2e-4
+                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 1e-3, duration= 600)
                     tech_file, ecc_parms= ca_parm(self.board_type, self.api, tech)
+                    self.technique.emit('CA')
 
                 case 2: # AC not implemented yet
                     ecc_parms, tech_file= (False, False)
@@ -254,7 +286,7 @@ class SECCM_BL(QObject):
             
             match self.settings.stop:
                 case 0: #tip stop based on DC change from fixed potential
-                    if abs(potentiostatOutput['Ewe'])<=1.5:
+                    if abs(potentiostatOutput['Ewe'])<=1:
                         print('Tip stop OCP')
                         return True
                     else:
@@ -277,35 +309,48 @@ class SECCM_BL(QObject):
     def clean(self):
         self.finished.emit()
 
+
 class threadInit():
     def __init__(self, workerClass, *arg):
         self.thread= QThread()
-        self.worker= workerClass(*arg)
+        self.worker= workerClass(self.thread, *arg)
         self.worker.moveToThread(self.thread)
 
         self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
 
-def SECCM_approach(PIdevice:dict[str,GCSDevice], potentiostat, SECCMsettings:UI_Settings.SECCM):
-        
-        event= {}
-        event['ready']= threading.Event()
-        event['limit']= threading.Event()
-        event['stop']= threading.Event()
+class SECCM(QObject):
+    def __init__(self, positioners:dict[str,GCSDevice], potentiostat, SECCMsettings:UI_Settings.SECCM):
+        super().__init__()
 
-        #Thread assigned to the positioners control during approach
-        positioner= threadInit(SECCM_PI, PIdevice, SECCMsettings, event)
-        positioner.thread.started.connect(positioner.worker.approachPI)
+        self.events= {}
+        self.events['ready']= threading.Event()
+        self.events['limit']= threading.Event()
+        self.events['stop']= threading.Event()
+        self.positioners= positioners
+        self.potentiostat= potentiostat
+        self.settings= SECCMsettings
+        self.PI= None
+        self.BL= None
 
-        #Thread assigned to the potentiostat control during approach
-        biologic= threadInit(SECCM_BL, potentiostat, SECCMsettings, event)
-        biologic.thread.started.connect(positioner.worker.approachBL)
+    def SECCM_approach(self):
+            
+            event= {}
+            event['ready']= threading.Event()
+            event['limit']= threading.Event()
+            event['stop']= threading.Event()
 
-        positioner.thread.start()
-        biologic.thread.start()
+            #Thread assigned to the positioners control during approach
+            self.PI= threadInit(SECCM_PI, self.positioners, self.settings, self.events)
+            self.PI.thread.started.connect(self.PI.worker.approachPI)
 
-        positioner.worker.finished.connect(lambda: print('[APPROACH] Succesful Landing!'))
+            #Thread assigned to the potentiostat control during approach
+            self.BL= threadInit(SECCM_BL, self.potentiostat, self.settings, self.events)
+            self.BL.thread.started.connect(self.BL.worker.approachBL)
+
+            self.PI.thread.start()
+            self.BL.thread.start()
 
 if __name__ == '__main__':
     print('Package for SECCM approach, Does nothing')

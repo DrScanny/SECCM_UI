@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import random
 
 from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
 import functools
@@ -50,8 +51,10 @@ class Biologic(QObject):
     echemData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
     biologic= Signal(object) # Potentiostat api information to connect to instrument
     connectionStatus= Signal(bool)
+    technique= Signal(str)
+    done= Signal()
 
-    def __init__(self, instrument, techniqueList=None):
+    def __init__(self, threadInstance: QThread, instrument, techniqueList):
         super().__init__()
 
         self.channel= instrument['channel']
@@ -60,80 +63,8 @@ class Biologic(QObject):
         self.board_type= instrument['board_type']
         self.verbosity= 1
         self.techniqueList= techniqueList
-        self.runBiologic= True
-
+        self.threadInstance= threadInstance
         
-    #region: connectBiologic
-    @_exception('Connection to VMP-300: Check if instrument if turned ON.', finish=True)
-    def connectBL(self, ip_address= "192.168.2.2", channel_nb= 1):
-
-        address= ip_address
-        self.channel= channel_nb
-
-        binary_path= os.getcwd()
-        force_load_firmware = True
-
-        # determine library file according to Python version (32b/64b)
-        if c_is_64b:
-            DLL_file = "EClib64.dll"
-        else:
-            DLL_file = "EClib.dll"
-
-        DLL_path = f"{binary_path}{os.sep}BiologicAPI{os.sep}lib{os.sep}{DLL_file}"
-
-        # ==============================================================================#
-
-        # API initialize
-        self.api = KBIO_api(DLL_path)
-
-        # BL_GetLibVersion
-        version = self.api.GetLibVersion()
-        print()
-        # BL_Connect
-
-        self.id_, device_info = self.api.Connect(address)
-        print(device_info)
-        print()
-
-        # based on board_type, determine firmware filenames
-        self.board_type = self.api.GetChannelBoardType(self.id_, self.channel)
-        match self.board_type:
-            case KBIO.BOARD_TYPE.ESSENTIAL.value:
-                firmware_path = "kernel.bin"
-                fpga_path = "Vmp_ii_0437_a6.xlx"
-            case KBIO.BOARD_TYPE.PREMIUM.value:
-                firmware_path = "kernel4.bin"
-                fpga_path = "vmp_iv_0395_aa.xlx"
-            case KBIO.BOARD_TYPE.DIGICORE.value:
-                firmware_path = "kernel.bin"
-                fpga_path = ""
-            case _:
-                print("> Board type detection failed")
-                sys.exit(-1)
-
-        # Load firmware
-        print(f"> Loading {firmware_path} ...")
-        # create a map from channel set
-        channel_map = self.api.channel_map({self.channel})
-        # BL_LoadFirmware
-        self.api.LoadFirmware(self.id_, channel_map, firmware=firmware_path, fpga=fpga_path, force=force_load_firmware)
-        print("> ... firmware loaded")
-        print()
-
-        # BL_GetChannelInfos
-        channel_info = self.api.GetChannelInfo(self.id_, self.channel)
-        print(f"> Channel {self.channel} info :")
-        print(channel_info)
-        print()
-
-        if not channel_info.is_kernel_loaded:
-            print("> kernel must be loaded in order to run the experiment")
-            sys.exit(-1)
-
-        self.biologic.emit({'api':self.api, 'channel':1, 'board_type': self.board_type, 'id_': self.id_})
-        self.connectionStatus.emit(True)
-        print('[EVENT] Connected to VMP-300!')
-  
     #region: loadTechnique
     @_exception('Loading technique: Invalid technique or settings')
     def loadTechnique(self, tech):
@@ -155,13 +86,21 @@ class Biologic(QObject):
 
         self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
 
+    def debugEchem(self):
+
+        for techSettings in self.techniqueList:
+                        
+            print(f'Running: {techSettings.technique}')
+            self.technique.emit(techSettings.technique)
+            for i in range(1,25):
+                self.echemData.emit({'t': i, 'Ewe': round(random.uniform(1.0, 2.0), 2), 'Iwe':round(random.uniform(5, 10.0), 2), 'cycle': 1})
+                time.sleep(0.1)
+
+            self.finished.emit()
+
     @_exception('Starting Channel')
     def startChannel(self):
         self.api.StartChannel(self.id_, self.channel)
-
-    def disconnectBL(self):
-        self.api.Disconnect(self.id_)
-        print('[VMP-300] Disconnected')
 
     #region: runEchem
     @_exception('Running Echem technique', finish=True)
@@ -173,6 +112,7 @@ class Biologic(QObject):
                         
             self.loadTechnique(tech)
             self.startChannel()
+            self.technique.emit(tech.technique)
             print(f'[VMP-300] Running: {tech.technique}')
 
             #while loop will emit echem data while potentiostat is running
@@ -186,14 +126,13 @@ class Biologic(QObject):
                 if status == "STOP":
                     print(f'[VMP-300] Succesful {tech.technique} Measurement')
                     break
-                if not self.runBiologic:
+           
+                if self.threadInstance.isInterruptionRequested():
                     print(f'[VMP-300] {tech.technique} Measurement Stopped by User')
                     break
-    
+            self.done.emit()
+            
         self.finished.emit()
-
-    def stopBiologic(self):
-        self.runBiologic= False
 
     def _clean(self):
         self.finished.emit()
