@@ -182,7 +182,7 @@ class SECCM_BL(QObject):
 
     finished= Signal() # Signal that process is over
     approachData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
-    technique= Signal(str)
+    technique= Signal(object)
 
     def __init__(self, threadInstance:QThread, potentiostat, SECCMsettings: UI_Settings.SECCM, event:dict[str,threading.Event]):
         super().__init__()
@@ -264,12 +264,14 @@ class SECCM_BL(QObject):
             match self.settings.stop:
                 case 0: #Open Circuit Potential
                     tech_file, ecc_parms= ocp_parm(self.board_type, self.api, tech)
-                    self.technique.emit('OCP')
+                    print(f'case0:{tech}')
+                    self.technique.emit(tech)
 
                 case 1: #Potentiostatic dt= 2e-4
-                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 1e-3, duration= 600)
+                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=5)
                     tech_file, ecc_parms= ca_parm(self.board_type, self.api, tech)
-                    self.technique.emit('CA')
+                    print(f'case1:{tech}')
+                    self.technique.emit(tech)
 
                 case 2: # AC not implemented yet
                     ecc_parms, tech_file= (False, False)

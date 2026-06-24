@@ -38,7 +38,8 @@ def cv_parm(board_type, api, cv_param):
         "record_dE": ECC_parm("Record_every_dE", float),
         "begin_step": ECC_parm('Begin_measuring_I', float),
         "end_step": ECC_parm('End_measuring_I', float),
-        "number of cycle": ECC_parm('N_Cycles', int)
+        "number of cycle": ECC_parm('N_Cycles', int),
+        "I_range": ECC_parm("I_Range", int)
     }
 
     #==============================================================================#
@@ -63,9 +64,9 @@ def cv_parm(board_type, api, cv_param):
     p_N_cycles= make_ecc_parm(api, CP_parms["number of cycle"], cv_param.cycle, 0)
     p_begin_step= make_ecc_parm(api, CP_parms["begin_step"], 0.5, 0)
     p_end_step= make_ecc_parm(api, CP_parms["end_step"], 1, 0)
-
+    p_I_range = make_ecc_parm(api, CP_parms["I_range"], cv_param.iRange, 0)
     # make the technique parameter array
-    ecc_parms = make_ecc_parms(api, *p_steps, p_scan_number, p_average_dE, p_record_dE, p_N_cycles, p_begin_step, p_end_step)
+    ecc_parms = make_ecc_parms(api, *p_steps, p_scan_number, p_average_dE, p_record_dE, p_N_cycles, p_begin_step, p_end_step, p_I_range)
 
     try:
         return tech_file, ecc_parms

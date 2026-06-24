@@ -195,11 +195,9 @@ class Main(QMainWindow):
         #Once thread and worker instance are created, the worker is moved inside the thread and connect to the started signal
         #-----------------------------------------------------------------------------------------------------------------------------------
         try:
-            
             self.BL= threadInit(Biologic, self.devices.BL.potentiostat, techniqueList)
-            self.BL.thread.started.connect(self.BL.worker.runEchem)
-            self.BL.worker.technique.connect(lambda technique: self.newPlot(technique))
-            #self.BL.worker.technique.connect(self.plot.setLabel)
+            self.BL.thread.started.connect(self.BL.worker.debugEchem)
+            self.BL.worker.technique.connect(lambda techSettings: self.newPlot(techSettings))
             self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
             self.BL.worker.done.connect(self.plot.dataTree.storeData)
             self.BL.worker.finished.connect(lambda: self._progress({'end':'0'}))
@@ -207,6 +205,7 @@ class Main(QMainWindow):
             if not self.BL.thread.isRunning():
                 print('running thread')
                 self.BL.thread.start()
+                self.plot.start_timer()
             else:
                 print('[ERROR] VMP-300 is busy, wait before performing another action.')
 
@@ -283,6 +282,14 @@ class Main(QMainWindow):
 
     #region: B7-**Mapping**
     def startMap(self):
+        """
+        #Generates coordinates and stores them in settingsMapping.map
+        self.mapping.landings()
+        
+        for coordinates in self.mapping.settingsMapping.map:
+            print(f'(x,y):{coordinates}')
+
+        """
     
         #Create savefile for data measurement
         filePath, _ = QFileDialog.getSaveFileName(
@@ -318,6 +325,7 @@ class Main(QMainWindow):
                     
                 case 2:
                     print("SECM Mapping")
+       
 
     def SECCM_approach(self):
         
@@ -335,11 +343,12 @@ class Main(QMainWindow):
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
         self.BL.thread.started.connect(self.BL.worker.approachBL)
-        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique))
+        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
         self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
 
         self.BL.thread.start()
         self.PI.thread.start()
+        self.plot.start_timer()
         
     def stopAll(self):
         try:
@@ -351,11 +360,6 @@ class Main(QMainWindow):
 
             if self.PI:
                 self.PI.thread.requestInterruption()
-                #self.triggerStop.connect(self.PI.worker.stopPositioners)
-
-            if self.SECCM:
-                self.SECCM.BL.thread.requestInterruption()
-                self.SECCM.PI.thread.requestInterruption()
                 
         except Exception as err:
             print(f'[ERROR] **Main|stopAll**:{err}')
@@ -387,12 +391,14 @@ class Main(QMainWindow):
 
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
-    def newPlot(self, technique):
+    def newPlot(self, echemSettings, dataTree=True):
         #
         self.plot.clearPlot()
-        self.plot.setAxes(technique)
+        self.plot.setAxes(echemSettings.technique)
+
         #Create new QTreeWidgetItem based on the 
-        self.plot.dataTree.newEntry(technique)
+        if dataTree:
+            self.plot.dataTree.newEntry(echemSettings.technique)
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):
@@ -406,6 +412,7 @@ class Main(QMainWindow):
             self.plot.dataTree.active.Iwe.append(data['Iwe'])
         if 'cycle' in data:
             self.plot.dataTree.active.cycle.append(data['cycle'])
+     
 
     """
     def closeEvent(self, event):

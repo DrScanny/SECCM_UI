@@ -10,12 +10,13 @@ class Move():
 
 @dataclass
 class Mapping():
-    pattern: str= 'Snake' #Pattern to follow when mapping
+    pattern: int= 0 #Pattern to follow when mapping: 0-> Snake, 1-> Parallel
     mode: int= 0 #Mapping mode: 0-> None, 1-> SECCM, 2-> SECM
     dX: int= 0 #Distance between landings in X always positive
     dY: int= 0 #Distance between landings in Y always positive
     nX: int= 1 #Number of landings in X must be >=1
     nY: int= 1 #Number of landings in Y must be >=1
+    map: list[list[int]]= field(default_factory=list) #Coordinates for mapping
     
     # dX=0, dY=0, nX=1, nY=1 -> Approach curve at current position
    

@@ -51,7 +51,7 @@ class Biologic(QObject):
     echemData= Signal(object) # Echem data sent as a dict {'t':time, 'Ewe':potential, 'Iwe':current, 'cycle':cycle} *exception for OCP only has time and potential
     biologic= Signal(object) # Potentiostat api information to connect to instrument
     connectionStatus= Signal(bool)
-    technique= Signal(str)
+    technique= Signal(object)
     done= Signal()
 
     def __init__(self, threadInstance: QThread, instrument, techniqueList):
@@ -90,8 +90,8 @@ class Biologic(QObject):
 
         for techSettings in self.techniqueList:
                         
-            print(f'Running: {techSettings.technique}')
-            self.technique.emit(techSettings.technique)
+            print(f'Running: {techSettings}')
+            self.technique.emit(techSettings)
             for i in range(1,25):
                 self.echemData.emit({'t': i, 'Ewe': round(random.uniform(1.0, 2.0), 2), 'Iwe':round(random.uniform(5, 10.0), 2), 'cycle': 1})
                 time.sleep(0.1)
@@ -112,7 +112,7 @@ class Biologic(QObject):
                         
             self.loadTechnique(tech)
             self.startChannel()
-            self.technique.emit(tech.technique)
+            self.technique.emit(tech)
             print(f'[VMP-300] Running: {tech.technique}')
 
             #while loop will emit echem data while potentiostat is running
@@ -120,7 +120,6 @@ class Biologic(QObject):
                 data= self.api.GetData(self.id_, self.channel)
                 status, tech_name= get_info_data(self.api, data)
                 for output in get_experiment_data(self.api, data, tech_name, self.board_type):
-
                     self.echemData.emit(output)
 
                 if status == "STOP":

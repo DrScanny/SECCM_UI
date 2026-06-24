@@ -1,7 +1,7 @@
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QTimer
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (QCheckBox, QWidget, QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
-                               QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
+                               QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget, QMenu, QToolButton,
                                QMainWindow, QStatusBar, QWidget, QFrame, QListWidget, QGroupBox,
                                QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
                                QTreeWidget, QComboBox, QLineEdit, QFileDialog, QSizePolicy, QStyle, QSpinBox)
@@ -19,6 +19,7 @@ from Plotting.PlotTree import DataTree
 from Plotting.colourpalettepopup import ColorPopup, PaletteButton
 
 from Plotting import UI_Settings
+from Plotting.DesignMenu import ColorMenu, ShapeMenu
 
 """
 Section to show data acquired through plots, it will include 2 parts:
@@ -114,20 +115,41 @@ class Plot(QWidget):
         
         #region: line and scatterplot options layout
         #Line options -------
+        #keep track of line parameters
+        self.lineChecked = True
+        self.lineSize = 2
+        self.lineColor = "#ff0000"
+        self.lineColorMenu = ColorMenu()
         self.linegroup = QGroupBox("Line Options")
         self.lineplotoptionslayout = QHBoxLayout()
         #Option to disable lines
-        """
         self.linedisableoption = QCheckBox()
         self.linedisableoption.setChecked(True)
         self.lineplotoptionslayout.addWidget(self.linedisableoption)
-        """
+        self.linedisableoption.stateChanged.connect(self.change_line_state)
+
         #lineplot color selector
-        self.linecolourSelector = QPushButton()
-        self.linecolor = 'red'
-        self.linecolourSelector.setIcon(QIcon("icons/colourwheelicon"))
+        self.linecolourSelector = QToolButton()
+        self.linecolourSelector.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {self.lineColor};
+                border-radius: 8px;
+                border: 1px solid #444;
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+                width: 0px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid #222;
+            }}
+        """)
+        self.linecolourSelector.setMenu(self.lineColorMenu)
+        self.linecolourSelector.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.linecolourSelector.setFixedSize(17,17)
+        self.lineColorMenu.colorSelected.connect(self.change_line_color)
         self.lineplotoptionslayout.addWidget(self.linecolourSelector)
-        self.linecolourSelector.clicked.connect(self.show_color_popup)
+        #self.linecolourSelector.clicked.connect(self.show_color_popup)
         #lineplot shape selector
         self.lineshapeSelector = QPushButton()
         self.lineshapeSelector.setIcon(QIcon("icons/dashedline"))
@@ -135,40 +157,67 @@ class Plot(QWidget):
         # Add the line options to the main layout
         self.linegroup.setLayout(self.lineplotoptionslayout)
         self.controlLayout.addWidget(self.linegroup)
+        #Line size selector
+        self.linesizeSelector = QSpinBox()
+        self.linesizeSelector.setRange(1,20)
+        self.linesizeSelector.setValue(2)
+        self.lineplotoptionslayout.addWidget(self.linesizeSelector)
+        self.linesizeSelector.valueChanged.connect(self.change_line_size)
 
         #Scatterplot options -------
+        #keep track of scatter parameters
+        self.scatterChecked = True
+        self.scatterSize = 8
+        self.scatterShape = 'o'
+        self.scatterColor = 'k'
+        self.scatterColorMenu = ColorMenu()
+        #create layout
         self.scattergroup = QGroupBox("Marker Options")
         self.scatterplotoptionslayout = QHBoxLayout()
         #Option to disable markers
         self.scatterenableoption = QCheckBox()
-        self.scatterenableoption.setChecked(False)
+        self.scatterenableoption.setChecked(True)
         self.scatterenableoption.stateChanged.connect(self.change_scatter_state)
         self.scatterplotoptionslayout.addWidget(self.scatterenableoption)
         #Scatterplot color selector
-        self.scattercolourSelector = QPushButton()
-        self.scattercolourSelector.setIcon(QIcon("icons/colourwheelicon"))
+        self.scattercolourSelector = QToolButton()
+        self.scattercolourSelector.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {self.scatterColor};
+                border-radius: 8px;
+                border: 1px solid #444;
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+                width: 0px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid #222;
+            }}
+        """)
+        self.scattercolourSelector.setMenu(self.scatterColorMenu)
+        self.scattercolourSelector.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.scattercolourSelector.setFixedSize(17,17)
+        self.scatterColorMenu.colorSelected.connect(self.change_scatter_color)
         self.scatterplotoptionslayout.addWidget(self.scattercolourSelector)
         #Scatterplot shape selector
+        self.scatterShapeMenu = ShapeMenu()
         self.scattershapeSelector = QPushButton()
         self.scattershapeSelector.setIcon(QIcon("icons/markershapeicon"))
+        self.scattershapeSelector.setMenu(self.scatterShapeMenu)
+        self.scatterShapeMenu.shapeSelected.connect(self.change_scatter_shape)
         self.scatterplotoptionslayout.addWidget(self.scattershapeSelector)
         #Scatterplot marker size selector
-        """
         self.markersizeSelector = QSpinBox()
         self.markersizeSelector.setRange(1,20)
-        self.markersizeSelector.setValue(2)
-        self.markersizelayout.addWidget(self.markersizeSelector)
-        self.scatterplotoptionslayout.addLayout(self.markersizelayout)
-        """
+        self.markersizeSelector.setValue(8)
+        self.scatterplotoptionslayout.addWidget(self.markersizeSelector)
+        self.markersizeSelector.valueChanged.connect(self.change_scatter_size)
+
         # Add the scattergroup box widget to the main layout
         self.scattergroup.setLayout(self.scatterplotoptionslayout)
         self.controlLayout.addWidget(self.scattergroup)
         #endregion
-        #keep track of scatter parameters
-        self.scatterChecked = False
-        self.scatterSize = 5
-        self.scatterShape = 'o'
-        #self.scatterColor
 
         #zoom in button
         self.zoomInButton = QPushButton()
@@ -196,9 +245,7 @@ class Plot(QWidget):
         self.controlLayout.addWidget(self.rectZoomButton)
 
         #Set default style to all buttons
-        self.linecolourSelector.setStyleSheet(toolbar_style)
         self.lineshapeSelector.setStyleSheet(toolbar_style)
-        self.scattercolourSelector.setStyleSheet(toolbar_style)
         self.scattershapeSelector.setStyleSheet(toolbar_style)
         self.saveButton.setStyleSheet(toolbar_style)
         self.zoomInButton.setStyleSheet(toolbar_style)
@@ -260,6 +307,8 @@ class Plot(QWidget):
         self.linecolorpopup.paletteSelected.connect(self.palette_clicked)
 
         #endregion
+        self.plotrefresh= QTimer(self)
+        self.plotrefresh.timeout.connect(self.refreshPlot)
 
     def setup_plot(self):
     
@@ -304,15 +353,18 @@ class Plot(QWidget):
         self.clear_plot_curves()
         
         if self.scatterChecked == True:
-            pen = None
-            symbol = 'o'
-            symbolBrush = 'k'
-            symbolSize = 7
+            symbol = self.scatterShape
+            symbolBrush = self.scatterColor
+            symbolSize = self.scatterSize
         else:
-            pen = pg.mkPen(self.linecolor, width=2)
             symbol = None
             symbolBrush = None
             symbolSize = None
+        
+        if self.lineChecked == True:
+            pen = pg.mkPen(color=self.lineColor, width=self.lineSize)
+        else:
+            pen = None
     
         
         self.live_curve = self.plotWindow.plot(
@@ -339,9 +391,6 @@ class Plot(QWidget):
         #add the incoming data point to the list
         self.x_data.append(x)
         self.y_data.append(y)
-
-        if self.live_curve:
-            self.live_curve.setData(self.x_data,self.y_data)
 
      #set the axes of the plot based on the technique
     
@@ -563,12 +612,68 @@ class Plot(QWidget):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     #region: set plot type
+    def change_line_state(self, state):
+        if state == Qt.CheckState.Checked.value:
+            self.lineChecked = True
+        else:
+            self.lineChecked = False
+        
+        self.set_pen()
+    
+    def change_line_size(self, value):
+        self.lineSize = value
+        self.set_pen()
+    
+    def change_line_color(self, color):
+        self.lineColor = color
+        self.linecolourSelector.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {self.lineColor};
+                border-radius: 8px;
+                border: 1px solid #444;
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+                width: 0px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid #222;
+            }}
+        """)
+        self.set_pen()
+
     def change_scatter_state(self, state):
         if state == Qt.CheckState.Checked.value:
             self.scatterChecked = True
         else:
             self.scatterChecked = False
         
+        self.set_pen()
+    
+    def change_scatter_size(self, value):
+        self.scatterSize = value
+        self.set_pen()
+    
+    def change_scatter_color(self, color):
+        self.scatterColor = color
+        self.scattercolourSelector.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {self.scatterColor};
+                border-radius: 8px;
+                border: 1px solid #444;
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+                width: 0px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid #222;
+            }}
+        """)
+        self.set_pen()
+    
+    def change_scatter_shape(self, shape):
+        self.scatterShape = shape
         self.set_pen()
     
     #endregion
@@ -596,6 +701,18 @@ class Plot(QWidget):
 
             vb.setMouseMode(pg.ViewBox.PanMode)
     
+    #endregion
+
+    #region: timer functions
+    def start_timer(self):
+        print("timer started")
+        self.plotrefresh.start(500)  
+
+    def refreshPlot(self):
+        self.live_curve.setData(self.x_data, self.y_data)
+    
+    def stop_timer(self):
+        self.plotrefresh.stop()
     #endregion
 
 

@@ -132,7 +132,6 @@ def get_experiment_data(api, data, tech_name, board_type):
 
         
         elif tech_name == "CV":
-            print(tech_name)
 
             Ewe= api.ConvertChannelNumericIntoSingle(row[1], board_type)
 
