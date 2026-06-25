@@ -22,10 +22,6 @@ def addWidgetsGrid(widgetsList, layout:QGridLayout, maxCol:int=4):
             else:
                 layout.addWidget(widget, line,col)
 
-def _mapLandings(settings: UI_Settings.Mapping):
-    Xlandings= np.arange(0, settings.dX*settings.nX, settings.nX )
-    Ylandings= np.arange(0, settings.dY*settings.nY, settings.nY )
-
 def _verifyMoveLimit(input:float, currentPos:float, negLim:float, posLim:float)-> bool:
     value= currentPos+input
     if value<=posLim and value>=negLim:
@@ -193,7 +189,7 @@ class Mapping(QWidget):
 
         self.comboPattern= QComboBox(); self.layoutMapSize.addWidget(self.comboPattern,3,1,1,1)
         self.comboPattern.addItems(['Snake', 'Straight'])
-        self.comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'pattern', self.comboPattern.currentText()))
+        self.comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'pattern', self.comboPattern.currentIndex()))
        
         self.labelMethod= QLabel('Method'); self.layoutMapSize.addWidget(self.labelMethod, 4,0)
         self.labelMethod.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
@@ -204,6 +200,7 @@ class Mapping(QWidget):
         self.comboMap.addItem('SECCM')
         self.comboMap.addItem('SECM')
         self.comboMap.setCurrentIndex(0)
+
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: self.groupApproach.setTitle(f'{self.comboMap.currentText()} Settings'))
         self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
@@ -300,6 +297,31 @@ class Mapping(QWidget):
         
         return self.framePot
     
+    def landings(self):
+        map=[]
+
+        Xlandings= np.arange(0, self.settingsMapping.dX*self.settingsMapping.nX+1, self.settingsMapping.dX)
+        Ylandings= np.arange(0, self.settingsMapping.dY*self.settingsMapping.nY+1, self.settingsMapping.dY)
+
+        if self.settingsMapping.pattern== 0:
+            
+            for idx, y in enumerate(Ylandings):
+                if idx % 2 == 0:
+                    for x in Xlandings:
+                        map.append([x,y])
+                        
+                else:
+                    for x in reversed(Xlandings):
+                        map.append([x,y])
+
+        elif self.settingsMapping.pattern== 1:
+
+            for y in Ylandings:
+                for x in Xlandings:
+                    map.append([x,y])
+
+        setattr(self.settingsMapping, 'map', map)
+
     #region saveWaypoints
     def saveWaypoint(self):
          coordinates= [float(self.labelXpos.text()), float(self.labelYpos.text()), float(self.labelZpos.text())]
