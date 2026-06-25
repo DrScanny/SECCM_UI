@@ -54,8 +54,6 @@ def exception():
 #region: SECCM_PI
 class SECCM_PI(QObject): 
 
-    message= Signal(str)
-    progress= Signal(int)
     position= Signal(list)
     connection= Signal(bool)
     finished= Signal()              
@@ -76,7 +74,7 @@ class SECCM_PI(QObject):
     #region: Approach
 
     def debug(self):
-        print('VMP-300 doing something...')
+        print('Positioner...')
         i=0
         while i<10:
             i+=1
@@ -109,8 +107,8 @@ class SECCM_PI(QObject):
             self.event_piezoReady.set()
 
             while True:
-                #Starting piezo movement from 60 to 0 um for approach, 3 seconds wait to let potentiostat start beforehand
-                time.sleep(3)
+                #Starting piezo movement from 60 to 0 um for approach, 2 seconds wait to let potentiostat start beforehand
+                time.sleep(2)
                 print(f"[SECCM] Piezo Approaching #{counter}")
                 self.Piezo.VEL('3', self.settings.speed)
                 self.Piezo.MOV('3', 0) 
@@ -187,8 +185,6 @@ class SECCM_BL(QObject):
     def __init__(self, threadInstance:QThread, potentiostat, SECCMsettings: UI_Settings.SECCM, event:dict[str,threading.Event]):
         super().__init__()
 
-        print(potentiostat)
-
         self.channel:int= potentiostat['channel']
         self.id_= potentiostat['id_']
         self.api:KBIO_api= potentiostat['api']
@@ -204,7 +200,8 @@ class SECCM_BL(QObject):
     def debug(self):
         print("[SECCM] VMP-300 Tip Down")
         
-        #self.loadTechnique() 
+        tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=0)
+        print(tech)
         self.finished.emit()
 
     #region: ApproachBL
@@ -231,7 +228,6 @@ class SECCM_BL(QObject):
                     for output in get_experiment_data(self.api, data, tech_name, self.board_type):
                         self.approachData.emit(output)
 
-                    
                         if self.tipStop(output): # Function that determine if the tip should be stopped based on the stop criteria
                             self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
                             print('[DEBUG] Tip Down Interrupted by Stop Criteria')
@@ -253,7 +249,7 @@ class SECCM_BL(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.clean()
+            self.finished.emit()
 
     @exception()
     def loadTechnique(self):
@@ -268,7 +264,7 @@ class SECCM_BL(QObject):
                     self.technique.emit(tech)
 
                 case 1: #Potentiostatic dt= 2e-4
-                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=5)
+                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=12)
                     tech_file, ecc_parms= ca_parm(self.board_type, self.api, tech)
                     print(f'case1:{tech}')
                     self.technique.emit(tech)
@@ -280,8 +276,8 @@ class SECCM_BL(QObject):
                     print("> Invalid technique or settings")
                     ecc_parms, tech_file= (False, False)
     
-            if tech_file and ecc_parms:
-                self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
+            #if tech_file and ecc_parms:
+            self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
 
     @exception()
     def tipStop(self, potentiostatOutput:dict[str,float]):
@@ -307,10 +303,6 @@ class SECCM_BL(QObject):
                 
                 case _:
                     return False
-                
-    def clean(self):
-        self.finished.emit()
-
 
 class threadInit():
     def __init__(self, workerClass, *arg):

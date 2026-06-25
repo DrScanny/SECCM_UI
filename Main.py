@@ -298,33 +298,34 @@ class Main(QMainWindow):
                                                     dir="",
                                                     filter="Text Files (*.txt);;All Files (*)")
         
-        self.filename = os.path.basename(filePath)
+        if filePath:
+            self.filename = os.path.basename(filePath)
 
-        #clear plot
-        self.plot.clearPlot()
+            #clear plot
+            self.plot.clearPlot()
 
-        with open(filePath, "a") as f:
+            with open(filePath, "a") as f:
 
-            #If a new experiment has started, create a parent in the datatree with that filename
-            self.plot.dataTree.setFilename(self.filename)
+                #If a new experiment has started, create a parent in the datatree with that filename
+                self.plot.dataTree.setFilename(self.filename)
 
-        # Loading technique from techList
-            techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+            # Loading technique from techList
+                techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
-            match self.mapping.settingsMapping.mode:
-                case 0:
-                    print("[TESTING] Echem only")
-                    self.BiologicRun(techList)
+                match self.mapping.settingsMapping.mode:
+                    case 0:
+                        print("[TESTING] Echem only")
+                        self.BiologicRun(techList)
+                            
+                    case 1:
+                        print("[TESTING] SECCM tip down only")
                         
-                case 1:
-                    print("[TESTING] SECCM tip down only")
-                    
-                    self.SECCM_approach()
-                    #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-                    #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-                    
-                case 2:
-                    print("SECM Mapping")
+                        self.SECCM_approach()
+                        #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+                        #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+                        
+                    case 2:
+                        print("SECM Mapping")
        
 
     def SECCM_approach(self):
@@ -337,33 +338,36 @@ class Main(QMainWindow):
 
         #Thread assigned to the positioners control during approach
         self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
-        self.PI.thread.started.connect(self.PI.worker.approachPI)
+        self.PI.thread.started.connect(self.PI.worker.debug)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
 
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
-        self.BL.thread.started.connect(self.BL.worker.approachBL)
+        self.BL.thread.started.connect(self.BL.worker.debug)
         self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
         self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
 
         self.BL.thread.start()
         self.PI.thread.start()
-        self.plot.start_timer()
+        #self.plot.start_timer()
         
     def stopAll(self):
+        print('[DEBUG] pressed stopAll')
+      
         try:
-            print('[DEBUG] stopAll pressed')
-            #Stopping potentiostat
-            if self.BL:
-                print('interrupting BL')
-                self.BL.thread.requestInterruption()
-
-            if self.PI:
-                self.PI.thread.requestInterruption()
-                
+            self.BL.thread.requestInterruption()
+        except AttributeError:
+            pass
         except Exception as err:
             print(f'[ERROR] **Main|stopAll**:{err}')
-        
+            
+        try:
+            self.PI.thread.requestInterruption()
+        except AttributeError:
+            pass
+        except Exception as err:
+            print(f'[ERROR] **Main|stopAll**:{err}')
+
     #endregion
 
     #region: C-Utilities
@@ -392,7 +396,6 @@ class Main(QMainWindow):
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
     def newPlot(self, echemSettings, dataTree=True):
-        #
         self.plot.clearPlot()
         self.plot.setAxes(echemSettings.technique)
 
@@ -464,7 +467,6 @@ class Main(QMainWindow):
         else:
             super().keyPressEvent(event)
     #endregion
-
 
 if __name__ == '__main__':
     
