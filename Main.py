@@ -196,7 +196,7 @@ class Main(QMainWindow):
         #-----------------------------------------------------------------------------------------------------------------------------------
         try:
             self.BL= threadInit(Biologic, self.devices.BL.potentiostat, techniqueList)
-            self.BL.thread.started.connect(self.BL.worker.debugEchem)
+            self.BL.thread.started.connect(self.BL.worker.runEchem)
             self.BL.worker.technique.connect(lambda techSettings: self.newPlot(techSettings))
             self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
             self.BL.worker.done.connect(self.plot.dataTree.storeData)
@@ -338,18 +338,18 @@ class Main(QMainWindow):
 
         #Thread assigned to the positioners control during approach
         self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
-        self.PI.thread.started.connect(self.PI.worker.debug)
+        self.PI.thread.started.connect(self.PI.worker.approachPI)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
 
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
-        self.BL.thread.started.connect(self.BL.worker.debug)
+        self.BL.thread.started.connect(self.BL.worker.approachBL)
         self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
         self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
 
         self.BL.thread.start()
         self.PI.thread.start()
-        #self.plot.start_timer()
+        self.plot.start_timer()
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')

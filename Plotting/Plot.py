@@ -73,6 +73,9 @@ class Plot(QWidget):
         self.y_variable= 'Ewe'
         self.x_data = []
         self.y_data = []
+        self.index= 0
+        self.x_data_np= None
+        self.y_data_np= None
 
         #region: UI setup
         self.mainLayout = QVBoxLayout()
@@ -392,7 +395,10 @@ class Plot(QWidget):
         self.x_data.append(x)
         self.y_data.append(y)
 
-     #set the axes of the plot based on the technique
+    def add_data_point_np(self, parsed_row):
+        self.x_data_np[self.index]= parsed_row[self.x_variable]
+        self.y_data_np[self.index]= parsed_row[self.y_variable]
+        self.index+=1
     
     #endregion
 
@@ -417,6 +423,41 @@ class Plot(QWidget):
             yLabel= potentialLabel
     
         elif technique == 'CP': 
+            self.x_variable= 't'
+            self.y_variable= 'Ewe'  
+            xLabel= timeLabel
+            yLabel= potentialLabel
+        
+        else:
+            self.x_variable= 'Ewe'
+            self.y_variable= 'Iwe'  
+            xLabel= potentialLabel
+            yLabel= currentLabel
+
+    def setAxes_np(self, echemSettings):
+
+        arraySize= echemSettings.duration/echemSettings.dt
+        self.y_data_numpy= np.zeros(arraySize)
+        self.x_data_numpy= np.zeros(arraySize)
+        self.index= 0
+        
+        timeLabel = "Time (s)"
+        potentialLabel = "Potential (V)"
+        currentLabel = "Current (A)"
+        
+        if echemSettings.technique == 'OCP':
+            self.x_variable= 't'
+            self.y_variable= 'Ewe'
+            xLabel= timeLabel
+            yLabel= currentLabel 
+        
+        elif echemSettings.technique == 'CA': 
+            self.x_variable= 't'
+            self.y_variable= 'Iwe'  
+            xLabel= timeLabel
+            yLabel= potentialLabel
+    
+        elif echemSettings.technique == 'CP': 
             self.x_variable= 't'
             self.y_variable= 'Ewe'  
             xLabel= timeLabel
@@ -710,6 +751,9 @@ class Plot(QWidget):
 
     def refreshPlot(self):
         self.live_curve.setData(self.x_data, self.y_data)
+
+    def refreshPlot_np(self):
+        self.live_curve.setData(self.x_data[:self.index], self.y_data[:self.index])
     
     def stop_timer(self):
         self.plotrefresh.stop()

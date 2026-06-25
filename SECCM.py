@@ -5,6 +5,7 @@ import time
 import functools
 import threading
 from pathlib import Path
+import random
 
 
 from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
@@ -22,6 +23,7 @@ from BiologicAPI.OCP_biologic import ocp_parm
 import UI_Settings
 
 #region: exception
+"""
 def exception():
         def decorator(func):
             @functools.wraps(func)
@@ -50,6 +52,8 @@ def exception():
             
             return wrapper
         return decorator
+"""
+
 
 #region: SECCM_PI
 class SECCM_PI(QObject): 
@@ -200,8 +204,15 @@ class SECCM_BL(QObject):
     def debug(self):
         print("[SECCM] VMP-300 Tip Down")
         
-        tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=0)
-        print(tech)
+        for techSettings in self.techniqueList:
+                        
+            print(f'Running: {techSettings}')
+            self.technique.emit(techSettings)
+            for i in range(1,25):
+                self.echemData.emit({'t': i, 'Ewe': round(random.uniform(1.0, 2.0), 2), 'Iwe':round(random.uniform(5, 10.0), 2), 'cycle': 1})
+                time.sleep(0.1)
+
+            self.finished.emit()
         self.finished.emit()
 
     #region: ApproachBL
@@ -251,7 +262,6 @@ class SECCM_BL(QObject):
             # This block always runs, even if an exception or return occurred
             self.finished.emit()
 
-    @exception()
     def loadTechnique(self):
             
             #Implementing the stop technique (OCP, CA, AC) based on user selection stored in self.settings.stop
@@ -264,7 +274,7 @@ class SECCM_BL(QObject):
                     self.technique.emit(tech)
 
                 case 1: #Potentiostatic dt= 2e-4
-                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=12)
+                    tech= UI_Settings.CA('CA', potential= self.settings.Eapp, dt= 2e-4, duration= 600, iRange=0)
                     tech_file, ecc_parms= ca_parm(self.board_type, self.api, tech)
                     print(f'case1:{tech}')
                     self.technique.emit(tech)
@@ -279,7 +289,6 @@ class SECCM_BL(QObject):
             #if tech_file and ecc_parms:
             self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
 
-    @exception()
     def tipStop(self, potentiostatOutput:dict[str,float]):
             
             match self.settings.stop:
