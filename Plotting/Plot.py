@@ -71,11 +71,9 @@ class Plot(QWidget):
         #current data list       
         self.x_variable= 't'
         self.y_variable= 'Ewe'
-        self.x_data = []
-        self.y_data = []
         self.index= 0
-        self.x_data_np= None
-        self.y_data_np= None
+        self.xData= np.zeros(10)
+        self.yData= np.zeros(10)
 
         #region: UI setup
         self.mainLayout = QVBoxLayout()
@@ -383,81 +381,42 @@ class Plot(QWidget):
     def show_color_popup(self):
         self.linecolorpopup.exec()
     
-    #region: main plot update function 
+    #region: add_data_point
     #method that updates the graph as data is being acquired from the potentiostat
+
     def add_data_point(self, parsed_row):
-
-        #extract the data value based on the variable name x_variable and y_variable
-        x = parsed_row[self.x_variable]
-        y = parsed_row[self.y_variable]
-
-        #add the incoming data point to the list
-        self.x_data.append(x)
-        self.y_data.append(y)
-
-    def add_data_point_np(self, parsed_row):
-        self.x_data_np[self.index]= parsed_row[self.x_variable]
-        self.y_data_np[self.index]= parsed_row[self.y_variable]
+        self.xData[self.index]= parsed_row[self.x_variable]
+        self.yData[self.index]= parsed_row[self.y_variable]
         self.index+=1
     
     #endregion
 
     #region: set axes method
     #method that sets the axes labels based on chosen techniques
-    def setAxes(self, technique):
-        
-        timeLabel = "Time (s)"
-        potentialLabel = "Potential (V)"
-        currentLabel = "Current (A)"
-        
-        if technique == 'OCP':
-            self.x_variable= 't'
-            self.y_variable= 'Ewe'
-            xLabel= timeLabel
-            yLabel= currentLabel 
-        
-        elif technique == 'CA': 
-            self.x_variable= 't'
-            self.y_variable= 'Iwe'  
-            xLabel= timeLabel
-            yLabel= potentialLabel
-    
-        elif technique == 'CP': 
-            self.x_variable= 't'
-            self.y_variable= 'Ewe'  
-            xLabel= timeLabel
-            yLabel= potentialLabel
-        
-        else:
-            self.x_variable= 'Ewe'
-            self.y_variable= 'Iwe'  
-            xLabel= potentialLabel
-            yLabel= currentLabel
+    def setAxes(self, techSettings:UI_Settings.echemSettings):
 
-    def setAxes_np(self, echemSettings):
-
-        arraySize= echemSettings.duration/echemSettings.dt
-        self.y_data_numpy= np.zeros(arraySize)
-        self.x_data_numpy= np.zeros(arraySize)
+        arraySize= int(techSettings.duration/techSettings.dt)+1
+        self.yData= np.zeros(arraySize)
+        self.xData= np.zeros(arraySize)
         self.index= 0
         
         timeLabel = "Time (s)"
         potentialLabel = "Potential (V)"
         currentLabel = "Current (A)"
         
-        if echemSettings.technique == 'OCP':
+        if techSettings.technique == 'OCP':
             self.x_variable= 't'
             self.y_variable= 'Ewe'
             xLabel= timeLabel
             yLabel= currentLabel 
         
-        elif echemSettings.technique == 'CA': 
+        elif techSettings.technique == 'CA': 
             self.x_variable= 't'
             self.y_variable= 'Iwe'  
             xLabel= timeLabel
             yLabel= potentialLabel
     
-        elif echemSettings.technique == 'CP': 
+        elif techSettings.technique == 'CP': 
             self.x_variable= 't'
             self.y_variable= 'Ewe'  
             xLabel= timeLabel
@@ -475,32 +434,6 @@ class Plot(QWidget):
     #endregion
 
     # Both functions below can be replaced by a single dict
-        
-    #get the index of the technique
-    """
-    
-    def returntechniqueIndex(self, technique):
-
-        if technique == 'OCP':
-            return self.ocpcount
-        
-        elif technique == 'CA':  
-            return self.cacount
-    
-        elif technique == 'CP': 
-            return self.cpcount
-        
-        elif technique == 'CV':
-            return self.cvcount
-        
-        else:
-            return None
-    """
-    
-    #if a new technique or run has started, restart plotting
-    def clearPlot(self):
-        self.x_data.clear()
-        self.y_data.clear()
      
     #this method uses any change in commanded position to update pixel count
     def update_pixel_count(self, commanded_position):
@@ -631,17 +564,17 @@ class Plot(QWidget):
         if self.plot_type != "Line":
             return
 
-        if len(self.x_data) == 0:
+        if len(self.xData) == 0:
             return
 
         mouse_point = self.plotWindow.plotItem.vb.mapSceneToView(pos)
 
         x = mouse_point.x()
 
-        nearest_index = np.argmin(np.abs(np.array(self.x_data) - x))
+        nearest_index = np.argmin(np.abs(np.array(self.xData) - x))
 
-        x_val = self.x_data[nearest_index]
-        y_val = self.y_data[nearest_index]
+        x_val = self.xData[nearest_index]
+        y_val = self.yData[nearest_index]
 
         #move hover lines
         self.vLine.setPos(x_val)
@@ -739,7 +672,6 @@ class Plot(QWidget):
             vb.setMouseMode(pg.ViewBox.RectMode)
 
         else:
-
             vb.setMouseMode(pg.ViewBox.PanMode)
     
     #endregion
@@ -750,10 +682,7 @@ class Plot(QWidget):
         self.plotrefresh.start(500)  
 
     def refreshPlot(self):
-        self.live_curve.setData(self.x_data, self.y_data)
-
-    def refreshPlot_np(self):
-        self.live_curve.setData(self.x_data[:self.index], self.y_data[:self.index])
+        self.live_curve.setData(self.xData[:self.index], self.yData[:self.index])
     
     def stop_timer(self):
         self.plotrefresh.stop()

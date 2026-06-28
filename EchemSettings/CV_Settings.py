@@ -20,7 +20,8 @@ class CVset(QWidget):
         self.setLayout(self.frameLayout)
 
         # Instantiating CV settings dataclass
-        self.settings= UI_Settings.CV()
+        self.settings= UI_Settings.echemSettings()
+        self.settings.technique= 'CV'
     
         # Setting-up GUI elements
         self.setupUi()

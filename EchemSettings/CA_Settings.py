@@ -19,7 +19,8 @@ class CAset(QWidget):
         super().__init__()
 
         # Instancing DataClass that contain all information required for echem technique
-        self.settings= UI_Settings.CA()
+        self.settings= UI_Settings.echemSettings()
+        self.settings.technique= 'CA'
         
         # Setting-up GUI elements
         self.setupUi()
@@ -117,7 +118,7 @@ class CAset(QWidget):
         self.dtLine.editingFinished.connect(lambda: setattr(self.settings, 'dt', float(self.dtLine.text())))
 
         self.iRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'iRange', self.iRangeCombo.currentData()))
-        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRangeself', self.eRangeCombo.currentData()))
+        self.eRangeCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'eRange', self.eRangeCombo.currentData()))
         self.bandwithCombo.currentTextChanged.connect(lambda: setattr(self.settings, 'bandwith', int(self.bandwithCombo.currentText())))
 
 if __name__ == '__main__':

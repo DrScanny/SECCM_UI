@@ -143,14 +143,13 @@ def get_experiment_data(api, data, tech_name, board_type):
 
             parsed_row= {"t": t, "Ewe": Ewe, "Iwe": Iwe, "cycle": cycle}
 
-
         else:
             # besides the previous 2 known techniques, this is provided
             # to show a raw dump of the record
             inx = ix + data_info.NbCols
             row = data_record[ix:inx]
             parsed_row = [f"0x{word:08X}" for word in row]
-
+     
         yield parsed_row
 
         ix = inx

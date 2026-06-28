@@ -136,6 +136,3 @@ class Biologic(QObject):
     def _clean(self):
         self.finished.emit()
 
-if __name__ == '__main__':
-
-    print('Biologic Class')

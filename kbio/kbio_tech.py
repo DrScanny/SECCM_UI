@@ -87,36 +87,51 @@ def get_experiment_data(api, data, tech_name, board_type):
     ix = 0
 
     for _ in range(data_info.NbRows):
-
         inx = ix + data_info.NbCols
-        row = data_record[ix:inx]
         t_high, t_low, *row = data_record[ix:inx]
 
-        t_rel= (t_high << 32) + t_low
-        t= current_values.TimeBase * t_rel
-
+        t_rel = (t_high << 32) + t_low
+        t = current_values.TimeBase * t_rel
         if tech_name == "OCV":
 
+            nb_words = len(row)
+            if nb_words == 1:
+                vmp3 = False
+            elif nb_words == 2:
+                vmp3 = True
+            else:
+                raise RuntimeError(f"{tech_name} : unexpected record length ({nb_words})")
+
             # Ewe is a float
-            Ewe= api.ConvertChannelNumericIntoSingle(row[0], board_type)
+            Ewe = api.ConvertChannelNumericIntoSingle(row[0], board_type)
 
             parsed_row = {"t": t, "Ewe": Ewe}
 
+            if vmp3:
+                # Ece is a float
+                Ece = api.ConvertChannelNumericIntoSingle(row[1], board_type)
+                parsed_row["Ece"] = Ece
+
         elif tech_name == "CP" or tech_name == 'CA':
+       
+
+            nb_words = len(row)
+            if nb_words != 3:
+                raise RuntimeError(f"{tech_name} : unexpected record length ({nb_words})")
 
             # Ewe is a float
-            Ewe= api.ConvertChannelNumericIntoSingle(row[0], board_type)
+            Ewe = api.ConvertChannelNumericIntoSingle(row[0], board_type)
 
             # current is a float
-            Iwe= api.ConvertChannelNumericIntoSingle(row[1], board_type)
+            Iwe = api.ConvertChannelNumericIntoSingle(row[1], board_type)
 
             # technique cycle is an integer
-            cycle= row[2]
+            cycle = row[2]
 
-            parsed_row= {"t": t, "Ewe": Ewe, "Iwe": Iwe, "cycle": cycle}
+            parsed_row = {"t": t, "Ewe": Ewe, "Iwe": Iwe, "cycle": cycle}
 
+        
         elif tech_name == "CV":
-            print(tech_name)
 
             Ewe= api.ConvertChannelNumericIntoSingle(row[1], board_type)
 
@@ -131,9 +146,10 @@ def get_experiment_data(api, data, tech_name, board_type):
         else:
             # besides the previous 2 known techniques, this is provided
             # to show a raw dump of the record
-
+            inx = ix + data_info.NbCols
+            row = data_record[ix:inx]
             parsed_row = [f"0x{word:08X}" for word in row]
-
+     
         yield parsed_row
 
         ix = inx

@@ -20,7 +20,9 @@ class OCPset(QWidget):
         self.setLayout(self.frameLayout)
         
         #Attributes for OCP
-        self.settings= UI_Settings.OCP()
+        self.settings= UI_Settings.echemSettings()
+        self.settings.technique= 'OCP'
+        self.settings.header=  'Time (s), E vs Ref (V)'
 
         self.setup_UI()
         self.update_fields()
