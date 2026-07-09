@@ -203,45 +203,48 @@ class SECM_BL(QObject):
     def approach(self):
     
         try:
+            print(self.settings)
             iData= []
             #Wait until positioners are reset to start potentiostat
             self.event_piezoReady.wait()
             
             #For SECM approach curve for now only chronoamp approach
             approachSettings= UI_Settings.echemSettings('CA', duration=10800, potential= self.settings.Eapp, dt=0.1, iRange= self.settings.iRange)
+            self.technique.emit(approachSettings)
             self.loadTechnique(approachSettings)
             self.api.StartChannel(self.id_, self.channel)
             
-            while len(iData)>30: 
+            while len(iData)<30: 
 
                 data= self.api.GetData(self.id_, self.channel)
                 status, tech_name= get_info_data(self.api, data) 
    
-                print("[SECM] Measuring bulk current")
                 for output in get_experiment_data(self.api, data, tech_name, self.board_type):
                     iData.append(output['Iwe'])
 
                 if self.threadInstance.isInterruptionRequested():
                     return
                 
-            iBulk=sum(iData[10:])/len(iData)
+            
+            iBulk=sum(iData[10:])/20
             iMin, iMax= self.tipStop(iBulk)
+            print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')    
 
             while True: 
 
                 data= self.api.GetData(self.id_, self.channel)
                 status, tech_name= get_info_data(self.api, data) 
 
-                print("[SECM] Measuring approach curve")
                 for output in get_experiment_data(self.api, data, tech_name, self.board_type):
                     #Measurement is stopped if stop condition is fulfilled
+                    self.echemData.emit(output)
+              
                     if output['Iwe']<iMin or output['Iwe']>iMax: # Function that determine if the tip should be stopped based on the stop criteria
                         self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
                         print('[DEBUG] Tip Down Interrupted by Stop Criteria')
                         return
-                    
-                    if not self.event_piezoLimit.is_set():
-                        self.echemData.emit(output)
+                      
+                   
 
                 # Measurement is stopped if reached time limit or user stop
                 if status == "STOP":
@@ -253,7 +256,7 @@ class SECM_BL(QObject):
         
         except Exception as err:
             # Handle the exception gracefully
-            print(f"[ERROR] **SECM|SECM_BL|approachBL**: {exception_brief(err, self.verbosity >= 1)}")
+            print(f"[ERROR] **SECM|SECM_BL|approach**: {exception_brief(err, self.verbosity >= 1)}")
             # Optional: Return a default fallback value or re-raise with 'raise'
             self.finished.emit()
             return None 
@@ -285,8 +288,8 @@ class SECM_BL(QObject):
             
             match self.settings.stop:
                 case 0: #tip stop based relative current change
-                    imax= ibulk*self.settings.limPos
-                    imin= ibulk*self.settings.limNeg
+                    imax= ibulk*self.settings.limPos/100
+                    imin= ibulk*self.settings.limNeg/100
                   
                 case 1: #tip stop based absolute current change
                     imax= ibulk+self.settings.limPos

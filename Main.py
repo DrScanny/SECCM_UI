@@ -197,7 +197,7 @@ class Main(QMainWindow):
         #-----------------------------------------------------------------------------------------------------------------------------------
         try:
             self.BL= threadInit(Biologic, self.devices.BL.potentiostat, self.techList)
-            self.BL.thread.started.connect(self.BL.worker.debugEchem)
+            self.BL.thread.started.connect(self.BL.worker.runEchem)
             self.BL.worker.technique.connect(lambda techSettings: self.newPlot(techSettings))
             self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
             self.BL.worker.done.connect(self.plot.dataTree.storeData)
@@ -315,15 +315,15 @@ class Main(QMainWindow):
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(SECM.SECM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
-        self.PI.thread.started.connect(self.PI.worker.approachPI)
+        self.PI= threadInit(SECM.SECM_PI, self.devices.PIdevices, self.mapping.settingsSECM, self.events)
+        self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
-        self.BL.thread.started.connect(self.BL.worker.approachBL)
+        self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECM, self.events)
+        self.BL.thread.started.connect(self.BL.worker.approach)
         self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
-        self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
+        self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
 
         self.BL.thread.start()
         self.PI.thread.start()
@@ -420,7 +420,7 @@ class Main(QMainWindow):
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
     def newPlot(self, echemSettings, dataTree=True):
-        self.plot.setAxes(echemSettings.technique)
+        self.plot.setAxes(echemSettings)
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
@@ -429,6 +429,7 @@ class Main(QMainWindow):
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):
         #Update plot with latest data
+        print(data)
         self.plot.add_data_point(data)
 
         #append echemData to current run

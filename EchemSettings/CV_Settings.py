@@ -22,6 +22,7 @@ class CVset(QWidget):
         # Instantiating CV settings dataclass
         self.settings= UI_Settings.echemSettings()
         self.settings.technique= 'CV'
+        self.settings.duration= 10000
     
         # Setting-up GUI elements
         self.setupUi()
@@ -85,11 +86,11 @@ class CVset(QWidget):
 
         self.scanLine= QLineEdit(); self.layoutRange.addWidget(self.scanLine, 5,1)
         self.scanLine.setText(str(self.settings.scanRate))
-        self.efLine.setValidator(QDoubleValidator(0.0001, 1, 4))
+        self.scanLine.setValidator(QDoubleValidator(0.0001, 1, 4))
 
         self.cycleLine= QLineEdit(); self.layoutRange.addWidget(self.cycleLine, 6,1)
         self.cycleLine.setText(str(self.settings.cycle))
-        self.efLine.setValidator(QIntValidator(0, 99))
+        self.cycleLine.setValidator(QIntValidator(0, 99))
         #endregion
 
         #General Settings

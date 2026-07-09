@@ -59,7 +59,7 @@ def ca_parm(board_type, api, ca_param:UI_Settings.echemSettings):
 
     # record parameters
     p_record_dt = make_ecc_parm(api, CP_parms["record_dt"], ca_param.dt,0)
-    p_record_dI = make_ecc_parm(api, CP_parms["record_dI"], ca_param.dI,0)
+    #p_record_dI = make_ecc_parm(api, CP_parms["record_dI"], ca_param.dI,0)
 
     # repeating factor
     p_repeat = make_ecc_parm(api, CP_parms["repeat"], 0,0)
@@ -69,7 +69,7 @@ def ca_parm(board_type, api, ca_param:UI_Settings.echemSettings):
     #p_timebase = make_ecc_parm(api, CP_parms["timebase"], ca_param['timebase'])
 
     # make the technique parameter array
-    ecc_parms = make_ecc_parms(api, p_voltage_step, p_step_duration, p_vs_init, p_nb_steps, p_record_dt, p_record_dI, p_repeat, p_I_range)
+    ecc_parms = make_ecc_parms(api, p_voltage_step, p_step_duration, p_vs_init, p_nb_steps, p_record_dt, p_repeat, p_I_range)
 
     print('CA technique loaded')
     return tech_file, ecc_parms

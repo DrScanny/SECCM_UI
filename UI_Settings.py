@@ -28,7 +28,7 @@ class SECCM():
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
     iRange: int= 0 #Current Range by default AUTO
-    techList: list[echemSettings]= field(default_factory=list)
+    #techList: list[echemSettings]= field(default_factory=list)
 
 @dataclass
 class SECM():
@@ -50,6 +50,7 @@ class echemSettings():
     duration: float= 10 #Experiment duration in seconds
     dt: float= 1 #Record every X second
     dE: float= 1 #Record every X V
+    dI: float= 1e-3 #record every mA
     scanRate: float= 0.1 #Scan rate in V/s
     ei: float= 0 #Set Initial potential vs OCP
     e1: float= 1 #Set 1st vertex
