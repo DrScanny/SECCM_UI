@@ -21,6 +21,7 @@ import SECCM
 from Plotting import Plot
 from PI import PI
 import UI_Settings
+import SECM
 
 """
 Main file for the SECCM software
@@ -314,12 +315,12 @@ class Main(QMainWindow):
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
+        self.PI= threadInit(SECM.SECM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
         self.PI.thread.started.connect(self.PI.worker.approachPI)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.techList, self.events)
+        self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
         self.BL.thread.started.connect(self.BL.worker.approachBL)
         self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
         self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
@@ -373,9 +374,6 @@ class Main(QMainWindow):
                         print("SECM Mapping")
                         self.mapping.mapCoordinates()
                         self.runSECM()
-       
-
-    
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')

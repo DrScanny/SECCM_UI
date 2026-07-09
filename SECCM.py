@@ -102,12 +102,16 @@ class SECCM_PI(QObject):
             counter=1
 
             #Initializing positioners speed and position for tip down procedure
-            self.Zstage.gcscommands.VEL(1, 0.01)
+            print("Initializing positioner for approach curve, will take 10 seconds")
+            self.Zstage.gcscommands.VEL(1, 0.005)
             self.Piezo.VEL('3', 5) 
             self.Piezo.MOV('3', 60)  
 
-            while any(list(self.Piezo.gcscommands.IsMoving().values())):
-                time.sleep(1)
+            while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                if self.threadInstance.isInterruptionRequested():
+                    self.Zstage.gcscommands.HLT(noraise=True)
+                    print('[SECCM] Approach Interrupted by User!')
+                    return
 
             #Primary loop, the positioners will continually move, until the stopTip event is set
             #   1- Piezo move for tip down 
@@ -125,7 +129,6 @@ class SECCM_PI(QObject):
 
                 #While the Piezo is moving, stop if **Stop Criteria** is met
                 while any(list(self.Piezo.gcscommands.IsMoving().values())):
-                    time.sleep(1)
                 
                     if self.event_stopTip.is_set():
                         print('[DEBUG] Landing succesful!?')
@@ -149,7 +152,6 @@ class SECCM_PI(QObject):
 
                 # Waiting for positioner reset to be done
                 while any(list(self.Zstage.gcscommands.IsMoving().values())):
-                    time.sleep(1)
                     if self.threadInstance.isInterruptionRequested():
                         self.Zstage.gcscommands.HLT(noraise=True)
                         print('[SECCM] Approach Interrupted by User!')

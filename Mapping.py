@@ -300,7 +300,7 @@ class Mapping(QWidget):
 
         iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 3,1)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECCM, 'iRange', iRangeCombo.currentIndex()))
-        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA', '10mA', '100mA', '1A'))
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
       
         return frame
     
@@ -363,7 +363,7 @@ class Mapping(QWidget):
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
         iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 1,1)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
-        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA', '10mA', '100mA', '1A'))
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
         iRangeCombo.setCurrentIndex(1)
 
         labelSpeed= QLabel('Speed'); layoutFrame.addWidget(labelSpeed,2,0)
@@ -411,7 +411,7 @@ class Mapping(QWidget):
 
         map=[]
 
-        if self.settingsMapping.dX==0 or self.settingsMapping.dY==0:
+        if self.settingsMapping.dX==0 and self.settingsMapping.dY==0:
             return setattr(self.settingsMapping, 'map', [[0,0]])
         
         else:
