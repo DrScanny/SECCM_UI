@@ -29,7 +29,8 @@ class CPset(QWidget):
         self.setLayout(self.frameLayout)
 
         # Instantiating CP settings dataclass
-        self.settings= UI_Settings.CP()
+        self.settings= UI_Settings.echemSettings()
+        self.settings.technique= 'CP'
 
         # Setting-up GUI elements
         self.setupUi()

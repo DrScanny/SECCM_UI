@@ -14,13 +14,7 @@ class TechSettings(QWidget):
       
     def __init__(self):
         super().__init__()
-        self.frame= QFrame()
-        self.frameLayout= QVBoxLayout(self.frame)
-        self.setLayout(self.frameLayout)
-
-        self.frameStack= QFrame()
-        self.frameStack.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
-        self.frameStack_layout= QVBoxLayout(self.frameStack); self.frameLayout.addWidget(self.frameStack)
+        self.frameStack_layout= QVBoxLayout(); self.setLayout(self.frameStack_layout)
         self.stack= QStackedWidget()
         self.stack.setFixedWidth(250)
 

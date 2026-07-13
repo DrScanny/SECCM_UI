@@ -1,11 +1,12 @@
 import sys
 
-import kbio.kbio_types as KBIO
-from kbio.kbio_tech import ECC_parm
-from kbio.kbio_tech import make_ecc_parm
-from kbio.kbio_tech import make_ecc_parms
+import BiologicAPI.kbio.kbio_types as KBIO
+from BiologicAPI.kbio.kbio_tech import ECC_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parms
+import UI_Settings
 
-def ocp_parm(board_type, api, ocp_settings):
+def ocp_parm(board_type, api, ocp_settings:UI_Settings.echemSettings):
 
     #==============================================================================#
     #Each technique has a specific file and they depend on the potentiostat board

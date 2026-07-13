@@ -12,16 +12,17 @@ class ExpLoad(QWidget):
         super().__init__()
 
         # Setting-up Frame that contains all widgets(Label, QtreeWidget, PushButton)
-        self.frame= QFrame()
-        self.frameLayout= QVBoxLayout(self.frame)
-        self.setLayout(self.frameLayout)
-
+        self.layoutWidget= QVBoxLayout(); self.setLayout(self.layoutWidget)
+        self.frame=QFrame(); self.layoutWidget.addWidget(self.frame)
+        self.frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
+        self.layoutFrame= QVBoxLayout(self.frame)
+        
         #region Technique List section -------------------------------------------------------------------------------------------------------------------------------
         self.groupList= QGroupBox('Techniques List'); self.groupList.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         self.groupList.setToolTip('Choose Echem Techniques to Add to Experiment Loadout')
         self.groupLayout= QVBoxLayout()
         self.groupList.setLayout(self.groupLayout)
-        self.frameLayout.addWidget(self.groupList)
+        self.layoutFrame.addWidget(self.groupList)
   
         self.list= QListWidget()
         self.groupLayout.addWidget(self.list)
@@ -39,7 +40,7 @@ class ExpLoad(QWidget):
         self.groupLoadout.setToolTip('Echem Techniques to be Performed during Experiment; Open the Technique Settings by Selecting it')
         self.layoutLoadout= QVBoxLayout()
         self.groupLoadout.setLayout(self.layoutLoadout)
-        self.frameLayout.addWidget(self.groupLoadout)
+        self.layoutFrame.addWidget(self.groupLoadout)
      
         self.tree= QTreeWidget()
         self.layoutLoadout.addWidget(self.tree)

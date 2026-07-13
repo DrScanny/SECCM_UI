@@ -1,12 +1,13 @@
 import sys
 from dataclasses import dataclass
 
-import kbio.kbio_types as KBIO
-from kbio.kbio_tech import ECC_parm
-from kbio.kbio_tech import make_ecc_parm
-from kbio.kbio_tech import make_ecc_parms
+import BiologicAPI.kbio.kbio_types as KBIO
+from BiologicAPI.kbio.kbio_tech import ECC_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parms
+import UI_Settings
 
-def ca_parm(board_type, api, ca_param):
+def ca_parm(board_type, api, ca_param:UI_Settings.echemSettings):
 
     #==============================================================================#
     #Each technique has a specific file and they depend on the potentiostat board
@@ -41,7 +42,8 @@ def ca_parm(board_type, api, ca_param):
         "record_dI": ECC_parm("Record_every_dI", float),
         "repeat": ECC_parm("N_Cycles", int),
         "charge": ECC_parm("xctr", int),
-        "timebase": ECC_parm("tb", float)
+        "timebase": ECC_parm("tb", float),
+        "I_range": ECC_parm("I_Range", int)
     }
 
     #==============================================================================#
@@ -57,16 +59,17 @@ def ca_parm(board_type, api, ca_param):
 
     # record parameters
     p_record_dt = make_ecc_parm(api, CP_parms["record_dt"], ca_param.dt,0)
-    p_record_dI = make_ecc_parm(api, CP_parms["record_dI"], ca_param.dI,0)
+    #p_record_dI = make_ecc_parm(api, CP_parms["record_dI"], ca_param.dI,0)
 
     # repeating factor
     p_repeat = make_ecc_parm(api, CP_parms["repeat"], 0,0)
+    p_I_range = make_ecc_parm(api, CP_parms["I_range"], ca_param.iRange, 0)
 
     #p_charge = make_ecc_parm(api, CP_parms["charge"], ca_param['charge'])
     #p_timebase = make_ecc_parm(api, CP_parms["timebase"], ca_param['timebase'])
 
     # make the technique parameter array
-    ecc_parms = make_ecc_parms(api, p_voltage_step, p_step_duration, p_vs_init, p_nb_steps, p_record_dt, p_record_dI, p_repeat)
+    ecc_parms = make_ecc_parms(api, p_voltage_step, p_step_duration, p_vs_init, p_nb_steps, p_record_dt, p_repeat, p_I_range)
 
     print('CA technique loaded')
     return tech_file, ecc_parms

@@ -1,12 +1,13 @@
 import sys
 from dataclasses import dataclass
 
-import kbio.kbio_types as KBIO
-from kbio.kbio_tech import ECC_parm
-from kbio.kbio_tech import make_ecc_parm
-from kbio.kbio_tech import make_ecc_parms
+import BiologicAPI.kbio.kbio_types as KBIO
+from BiologicAPI.kbio.kbio_tech import ECC_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parm
+from BiologicAPI.kbio.kbio_tech import make_ecc_parms
+import UI_Settings
 
-def cp_parm(board_type, api, cp_param):
+def cp_parm(board_type, api, cp_param:UI_Settings.echemSettings):
 
     #==============================================================================#
     #Each technique has a specific file and they depend on the potentiostat board
