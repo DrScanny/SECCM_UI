@@ -350,7 +350,12 @@ class Main(QMainWindow):
         if filePath:
             self.filename = os.path.basename(filePath)
 
+<<<<<<< Updated upstream
             with open(filePath, "a") as f:
+=======
+        #clear plot
+        #self.plot.clearPlot()
+>>>>>>> Stashed changes
 
                 #If a new experiment has started, create a parent in the datatree with that filename
                 self.plot.dataTree.setFilename(self.filename)
@@ -419,12 +424,20 @@ class Main(QMainWindow):
 
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
+<<<<<<< Updated upstream
     def newPlot(self, echemSettings, dataTree=True):
         self.plot.setAxes(echemSettings)
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
             self.plot.dataTree.newEntry(echemSettings.technique)
+=======
+    def newPlot(self, echemSettings, file, dataTree=True):
+        self.writer.writeEchemSettings(echemSettings, file)
+        #self.plot.clearPlot()
+        self.plot.setAxes(echemSettings)
+        self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
+>>>>>>> Stashed changes
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):

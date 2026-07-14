@@ -385,7 +385,7 @@ class Plot(QWidget):
     #method that updates the graph as data is being acquired from the potentiostat
 
     def add_data_point(self, parsed_row):
-        print(self.index)
+    
         self.xData[self.index]= parsed_row[self.x_variable]
         self.yData[self.index]= parsed_row[self.y_variable]
         self.index+=1
@@ -397,7 +397,6 @@ class Plot(QWidget):
     def setAxes(self, techSettings:UI_Settings.echemSettings):
 
         arraySize= int(techSettings.duration/techSettings.dt)+2
-        print(arraySize)
         self.yData= np.zeros(arraySize)
         self.xData= np.zeros(arraySize)
         self.index= 0
@@ -405,8 +404,6 @@ class Plot(QWidget):
         timeLabel = "Time (s)"
         potentialLabel = "Potential (V)"
         currentLabel = "Current (A)"
-
-        print(techSettings.technique)
         
         if techSettings.technique == 'OCP':
             self.x_variable= 't'
