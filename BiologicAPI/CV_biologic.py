@@ -4,8 +4,9 @@ import BiologicAPI.kbio.kbio_types as KBIO
 from BiologicAPI.kbio.kbio_tech import ECC_parm
 from BiologicAPI.kbio.kbio_tech import make_ecc_parm
 from BiologicAPI.kbio.kbio_tech import make_ecc_parms
+import UI_Settings
 
-def cv_parm(board_type, api, cv_param):
+def cv_parm(board_type, api, cv_param:UI_Settings.echemSettings):
 
     #==============================================================================#
     #Each technique has a specific file and they depend on the potentiostat board

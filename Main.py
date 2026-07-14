@@ -21,6 +21,7 @@ import SECCM
 from Plotting import Plot
 from PI import PI
 import UI_Settings
+import SECM
 
 """
 Main file for the SECCM software
@@ -186,7 +187,7 @@ class Main(QMainWindow):
     #endregion
 
     #region: B2-BiologicRun
-    def BiologicRun(self, techniqueList):
+    def BiologicRun(self):
 
         #-----------------------------------------------------------------------------------------------------------------------------------
         #Creating new thread and worker class instance to execute method
@@ -195,8 +196,8 @@ class Main(QMainWindow):
         #Once thread and worker instance are created, the worker is moved inside the thread and connect to the started signal
         #-----------------------------------------------------------------------------------------------------------------------------------
         try:
-            self.BL= threadInit(Biologic, self.devices.BL.potentiostat, techniqueList)
-            self.BL.thread.started.connect(self.BL.worker.debugEchem)
+            self.BL= threadInit(Biologic, self.devices.BL.potentiostat, self.techList)
+            self.BL.thread.started.connect(self.BL.worker.runEchem)
             self.BL.worker.technique.connect(lambda techSettings: self.newPlot(techSettings))
             self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
             self.BL.worker.done.connect(self.plot.dataTree.storeData)
@@ -280,7 +281,55 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-    #region: B7-**Mapping**
+    #region: B6-SECCM
+    def runSECCM(self):
+        
+        self.events= {}
+
+        self.events['ready']= threading.Event()
+        self.events['limit']= threading.Event()
+        self.events['stop']= threading.Event()
+
+        #Thread assigned to the positioners control during approach
+        self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.mapping.settingsMapping.map, self.events)
+        self.PI.thread.started.connect(self.PI.worker.approachPI)
+        self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+
+        #Thread assigned to the potentiostat control during approach
+        self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.techList, self.events)
+        self.BL.thread.started.connect(self.BL.worker.approachBL)
+        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
+        self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
+
+        self.BL.thread.start()
+        self.PI.thread.start()
+        self.plot.start_timer()
+
+    #region: B7-SECM
+    def runSECM(self):
+        
+        self.events= {}
+
+        self.events['ready']= threading.Event()
+        self.events['limit']= threading.Event()
+        self.events['stop']= threading.Event()
+
+        #Thread assigned to the positioners control during approach
+        self.PI= threadInit(SECM.SECM_PI, self.devices.PIdevices, self.mapping.settingsSECM, self.events)
+        self.PI.thread.started.connect(self.PI.worker.approach)
+        self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+
+        #Thread assigned to the potentiostat control during approach
+        self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECM, self.events)
+        self.BL.thread.started.connect(self.BL.worker.approach)
+        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
+        self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
+
+        self.BL.thread.start()
+        self.PI.thread.start()
+        self.plot.start_timer()
+
+    #region: B8-**Mapping**
     def startMap(self):
         """
         #Generates coordinates and stores them in settingsMapping.map
@@ -301,55 +350,35 @@ class Main(QMainWindow):
         if filePath:
             self.filename = os.path.basename(filePath)
 
-            #clear plot
-            self.plot.clearPlot()
-
+<<<<<<< Updated upstream
             with open(filePath, "a") as f:
+=======
+        #clear plot
+        #self.plot.clearPlot()
+>>>>>>> Stashed changes
 
                 #If a new experiment has started, create a parent in the datatree with that filename
                 self.plot.dataTree.setFilename(self.filename)
 
             # Loading technique from techList
-                techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+                self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
                 match self.mapping.settingsMapping.mode:
                     case 0:
                         print("[TESTING] Echem only")
-                        self.BiologicRun(techList)
+                        self.BiologicRun()
                             
                     case 1:
                         print("[TESTING] SECCM tip down only")
-                        
-                        self.SECCM_approach()
+                        self.mapping.mapCoordinates()
+                        self.runSECCM()
                         #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
                         #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
                         
                     case 2:
                         print("SECM Mapping")
-       
-
-    def SECCM_approach(self):
-        
-        self.events= {}
-
-        self.events['ready']= threading.Event()
-        self.events['limit']= threading.Event()
-        self.events['stop']= threading.Event()
-
-        #Thread assigned to the positioners control during approach
-        self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.events)
-        self.PI.thread.started.connect(self.PI.worker.debug)
-        self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-
-        #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.events)
-        self.BL.thread.started.connect(self.BL.worker.debug)
-        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
-        self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
-
-        self.BL.thread.start()
-        self.PI.thread.start()
-        #self.plot.start_timer()
+                        self.mapping.mapCoordinates()
+                        self.runSECM()
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
@@ -395,17 +424,25 @@ class Main(QMainWindow):
 
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
+<<<<<<< Updated upstream
     def newPlot(self, echemSettings, dataTree=True):
-        self.plot.clearPlot()
-        self.plot.setAxes(echemSettings.technique)
+        self.plot.setAxes(echemSettings)
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
             self.plot.dataTree.newEntry(echemSettings.technique)
+=======
+    def newPlot(self, echemSettings, file, dataTree=True):
+        self.writer.writeEchemSettings(echemSettings, file)
+        #self.plot.clearPlot()
+        self.plot.setAxes(echemSettings)
+        self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
+>>>>>>> Stashed changes
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):
         #Update plot with latest data
+        print(data)
         self.plot.add_data_point(data)
 
         #append echemData to current run
@@ -416,7 +453,6 @@ class Main(QMainWindow):
         if 'cycle' in data:
             self.plot.dataTree.active.cycle.append(data['cycle'])
      
-
     """
     def closeEvent(self, event):
         # Create a confirmation dialog

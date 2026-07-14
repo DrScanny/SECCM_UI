@@ -113,7 +113,7 @@ class Biologic(QObject):
             self.loadTechnique(tech)
             self.startChannel()
             self.technique.emit(tech)
-            print(f'[VMP-300] Running: {tech.technique}')
+            print(f'[VMP-300] Running: {tech}')
 
             #while loop will emit echem data while potentiostat is running
             while True:
@@ -136,6 +136,3 @@ class Biologic(QObject):
     def _clean(self):
         self.finished.emit()
 
-if __name__ == '__main__':
-
-    print('Biologic Class')

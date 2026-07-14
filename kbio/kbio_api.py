@@ -51,8 +51,8 @@ from kbio.utils import warn_diff
 
 # ==============================================================================#
 
-class KBIO_api:
 
+class KBIO_api:
     def GetLibVersion(self):
         try:
             version = c_buffer(32)
@@ -62,7 +62,6 @@ class KBIO_api:
             print(exception_brief(e, 1))
 
     def Connect(self, server, timeout=5):
-       
         id_ = c_int32()
         info = self.DeviceInfo()
         error = self.BL_Connect(server.encode(), timeout, id_, info)
@@ -100,6 +99,7 @@ class KBIO_api:
 
     def Disconnect(self, id_):
         self.BL_Disconnect(id_)
+        print('disconnected')
 
     def GetChannelsPlugged(self, id_):
         ch_map = KBIO.ChannelsArray()
