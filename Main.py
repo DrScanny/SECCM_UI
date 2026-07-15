@@ -22,6 +22,7 @@ from Plotting import Plot
 from PI import PI
 import UI_Settings
 import SECM
+from FileWriter import FileWrite
 
 """
 Main file for the SECCM software
@@ -154,6 +155,10 @@ class Main(QMainWindow):
         #self.experiments.buttonStop.clicked.connect(self.stopMap)
         #endregion
         #endregion
+
+        self.writer = FileWrite()
+
+
         
     #region: B-Core Methods
     #Contains all the core methods for critical operation of the SECCM/SECM
@@ -346,39 +351,40 @@ class Main(QMainWindow):
         """
     
         #Create savefile for data measurement
+        #Create savefile for data measurement
         filePath, _ = QFileDialog.getSaveFileName(
                                                     parent=None,
                                                     caption="Create Save File",
                                                     dir="",
                                                     filter="Text Files (*.txt);;All Files (*)")
         
-        if filePath:
-            self.filename = os.path.basename(filePath)
+        self.filename = os.path.basename(filePath)
+        self.plot.dataTree.setFilename(self.filename)
 
-            with open(filePath, "a") as f:
+        #clear plot
+        #self.plot.clearPlot()
 
-                #If a new experiment has started, create a parent in the datatree with that filename
-                self.plot.dataTree.setFilename(self.filename)
+        self.data_file = open(filePath, "a", encoding="utf-8-sig")  
 
-            # Loading technique from techList
-                self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+        # Loading technique from techList
+        self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
-                match self.mapping.settingsMapping.mode:
-                    case 0:
-                        print("[TESTING] Echem only")
-                        self.BiologicRun()
-                            
-                    case 1:
-                        print("[TESTING] SECCM tip down only")
-                        self.mapping.mapCoordinates()
-                        self.runSECCM()
-                        #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-                        #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-                        
-                    case 2:
-                        print("SECM Mapping")
-                        self.mapping.mapCoordinates()
-                        self.runSECM()
+        match self.mapping.settingsMapping.mode:
+            case 0:
+                print("[TESTING] Echem only")
+                self.BiologicRun()
+                    
+            case 1:
+                print("[TESTING] SECCM tip down only")
+                self.mapping.mapCoordinates()
+                self.runSECCM()
+                #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+                #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+                
+            case 2:
+                print("SECM Mapping")
+                self.mapping.mapCoordinates()
+                self.runSECM()
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
@@ -426,6 +432,7 @@ class Main(QMainWindow):
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
     def newPlot(self, echemSettings, dataTree=True):
+        self.writer.writeEchemSettings(echemSettings, self.data_file)
         self.plot.setAxes(echemSettings)
 
         #Create new QTreeWidgetItem based on the 
@@ -444,6 +451,9 @@ class Main(QMainWindow):
             self.plot.dataTree.active.Iwe.append(data['Iwe'])
         if 'cycle' in data:
             self.plot.dataTree.active.cycle.append(data['cycle'])
+        
+        dataToWrite = ",".join(map(str, [data['t'], data['Ewe'], data['Iwe'],data['cycle']]))
+        self.writer.writeData(dataString=dataToWrite, file=self.data_file)
      
     """
     def closeEvent(self, event):
