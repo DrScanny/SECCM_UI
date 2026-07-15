@@ -21,22 +21,6 @@ from Plotting.colourpalettepopup import ColorPopup, PaletteButton
 from Plotting import UI_Settings
 from Plotting.DesignMenu import ColorMenu, ShapeMenu
 
-"""
-Section to show data acquired through plots, it will include 2 parts:
-   I- Graph area to plot both 1D (scatter/line plots) and 2D (scatter/heat maps) plots
-   II- Data management with multiple levels to organize the different measurements acquired at each landing
-
-I- Graph area
-   a) Live plotting the data acquired by the potentiostat
-      Have the options for each axis to pick the data variable for example in a CV the data is comprised of {t: time, E: potential, I: current, cycle: cycle number}
-   b) Plot data from datatree
-      i) 1D (scatter/line plots)
-      ii) 2D (scatter/heat maps) plots
-   c) Extra features: the graph area should be visually pleasant, have options to zoom in part of the graph, save the plog as an image, 
-      report the coordinate of each data point, basic plot customization (scatter options, color, trace options, color map, legends) ...
-
-   1st assignment is to do basic live plotting see below plot1D_Live(self)
-"""
 #Popwindow that loads data from datatree (not yet functional)
 class DataWindow(QWidget):
     def __init__(self, echemData):
@@ -54,8 +38,6 @@ class DataWindow(QWidget):
         y = echemData.Ewe
 
         self.plotWidget.plot(x, y, pen='k')
-
-
 
 class Plot(QWidget):
     def __init__(self):
@@ -201,6 +183,7 @@ class Plot(QWidget):
         self.scattercolourSelector.setFixedSize(17,17)
         self.scatterColorMenu.colorSelected.connect(self.change_scatter_color)
         self.scatterplotoptionslayout.addWidget(self.scattercolourSelector)
+
         #Scatterplot shape selector
         self.scatterShapeMenu = ShapeMenu()
         self.scattershapeSelector = QPushButton()
@@ -208,6 +191,7 @@ class Plot(QWidget):
         self.scattershapeSelector.setMenu(self.scatterShapeMenu)
         self.scatterShapeMenu.shapeSelected.connect(self.change_scatter_shape)
         self.scatterplotoptionslayout.addWidget(self.scattershapeSelector)
+
         #Scatterplot marker size selector
         self.markersizeSelector = QSpinBox()
         self.markersizeSelector.setRange(1,20)
@@ -255,8 +239,6 @@ class Plot(QWidget):
 
         #add spacing
         self.controlLayout.addSpacing(20)
-
-        #add spacing
         self.controlLayout.addStretch()
 
         #setup plot
@@ -396,7 +378,7 @@ class Plot(QWidget):
     #method that sets the axes labels based on chosen techniques
     def setAxes(self, techSettings:UI_Settings.echemSettings):
 
-        arraySize= int(techSettings.duration/techSettings.dt)+2
+        arraySize= int(2*techSettings.duration/techSettings.dt)
         self.yData= np.zeros(arraySize)
         self.xData= np.zeros(arraySize)
         self.index= 0

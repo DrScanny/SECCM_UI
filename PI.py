@@ -45,7 +45,7 @@ class PI(QObject):
         connection= Signal(bool)
         finished= Signal()              
 
-        def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], move:list[float]=[0.0, 0.0, 0.0]):
+        def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], move:list[float]=[0.0, 0.0, 0.0, 0.0]):
             super().__init__()
 
             self.XYstage= PIdevice['XY']
@@ -54,7 +54,8 @@ class PI(QObject):
             self.Xmove= -1*move[0]
             self.Ymove= move[1]
             self.Zmove= move[2]
-            self.currentPosition= [0.0, 0.0, 0.0]
+            self.Pzmove= move[3]
+            self.currentPosition= [0.0, 0.0, 0.0, 0.0]
             self.threadInstance= threadInstance
 
         def debug(self):
@@ -74,14 +75,10 @@ class PI(QObject):
         @_exception()
         def moveXYZ(self):
         
-            #Calculating the predicted position for each positioner after moving 
-            Xf= round(abs(self.Xmove + self.XYstage.gcscommands.qPOS()['1']),3)
-            Yf= round(abs(self.Ymove + self.XYstage.qPOS()['2']),3)
-            Zf= round(self.Zmove + self.Zstage.qPOS()['1'], 3)
-        
             #Moving Stages
-            self.XYstage.MVR({'1':self.Xmove, '2':self.Ymove})
-            self.Zstage.MVR('1', self.Zmove)
+            self.XYstage.gcscommands.MVR({'1':self.Xmove, '2':self.Ymove})
+            self.Zstage.gcscommands.MVR('1', self.Zmove)
+            self.Piezo.gcscommands.MVR('3', self.Pzmove)
 
             #Wait until Stages have stopped moving
                     
@@ -114,7 +111,7 @@ class PI(QObject):
             self._updatePosition(position= True)
 
         def _updatePosition(self, position:bool =False):
-            self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3)]
+            self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3), round(self.Piezo.qPOS()['3'],3)]
             self.position.emit(self.currentPosition)  
             
             if position:

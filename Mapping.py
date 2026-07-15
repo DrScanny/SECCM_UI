@@ -81,6 +81,8 @@ class Mapping(QWidget):
         self.labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZ= QLabel('Z (mm)');  self.layoutPosition.addWidget(self.labelZ, 1,3); self.labelZ.setStyleSheet("font-weight: bold;")
         self.labelZ.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelPz= QLabel('Pz (\u03bcm)');  self.layoutPosition.addWidget(self.labelPz, 1,4); self.labelPz.setStyleSheet("font-weight: bold;")
+        self.labelPz.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
         self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,2,0,1,5) 
         self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
@@ -107,12 +109,17 @@ class Mapping(QWidget):
         self.lineZmove= QLineEdit(); self.layoutPosition.addWidget(self.lineZmove, 3,3)
         self.lineZmove.setText('0')
         self.lineZmove.setValidator(QDoubleValidator(-25, 25, 3))
+
+        self.linePzmove= QLineEdit(); self.layoutPosition.addWidget(self.linePzmove, 3,4)
+        self.linePzmove.setText('0')
+        self.linePzmove.setValidator(QDoubleValidator(-60, 60, 3))
    
         self.labelPosition= QLabel('Position'); self.layoutPosition.addWidget(self.labelPosition, 5,0)
         self.labelPosition.setToolTip("Indicate the current position of the X, Y, Z positioners")
         self.labelXpos= QLabel('0');  self.layoutPosition.addWidget(self.labelXpos, 5,1); self.labelXpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelYpos= QLabel('0'); self.layoutPosition.addWidget(self.labelYpos, 5,2); self.labelYpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZpos= QLabel('0');  self.layoutPosition.addWidget(self.labelZpos, 5,3); self.labelZpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelPzpos= QLabel('0');  self.layoutPosition.addWidget(self.labelPzpos, 5,4); self.labelPzpos.setAlignment(Qt.AlignmentFlag.AlignCenter) 
        
         self.labelMax= QLabel('Limits'); self.layoutPosition.addWidget(self.labelMax, 6,0)
         self.labelMax.setToolTip("Indicate the maximum range of the X,Y,Z")
@@ -140,7 +147,7 @@ class Mapping(QWidget):
         self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,10,2,4,2) 
         self.listWaypoints.setFixedWidth(130)
 
-        self.buttonMove= QPushButton('Move'); self.layoutPosition.addWidget(self.buttonMove,10,0,1,2)
+        self.buttonMove= QPushButton('Move Rel'); self.layoutPosition.addWidget(self.buttonMove,10,0,1,2)
         self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,13,0,1,2)    
         #self.buttonReset.clicked.connect(self.setWaypoint) 
         self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,12,0,1,2)

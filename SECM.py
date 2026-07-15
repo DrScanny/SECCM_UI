@@ -146,7 +146,10 @@ class SECM_PI(QObject):
                 #If the Piezo reaches its limit without being stopped, reset the piezo and move the Z-Stage by the corresponding amount
                 print("[SECCM] Piezo Limit Reached")
                 self.event_piezoLimit.set()
-                self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3)]
+                self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), 
+                                       round(self.XYstage.qPOS()['2'],3), 
+                                       round(self.Zstage.qPOS()['1']-25,3), 
+                                       round(self.Piezo.qPOS()['3'],3)]
                 self.position.emit(self.currentPosition)  
                 self.reset()
                  
@@ -224,7 +227,6 @@ class SECM_BL(QObject):
 
                 if self.threadInstance.isInterruptionRequested():
                     return
-                
             
             iBulk=sum(iData[10:])/20
             iMin, iMax= self.tipStop(iBulk)
@@ -243,8 +245,6 @@ class SECM_BL(QObject):
                         self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
                         print('[DEBUG] Tip Down Interrupted by Stop Criteria')
                         return
-                      
-                   
 
                 # Measurement is stopped if reached time limit or user stop
                 if status == "STOP":

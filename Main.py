@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
+from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
@@ -219,7 +219,7 @@ class Main(QMainWindow):
     def PImove(self):
 
         try:
-            move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())]
+            move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text()), float(self.mapping.linePzmove.text())]
 
             self.PI= threadInit(PI, self.devices.PIdevices, move)
             self.PI.thread.started.connect(self.PI.worker.moveXYZ)
@@ -322,13 +322,18 @@ class Main(QMainWindow):
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECM, self.events)
         self.BL.thread.started.connect(self.BL.worker.approach)
-        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
+        self.BL.worker.technique.connect(lambda settings: self.newPlot(settings, dataTree=False))
         self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
 
-        self.BL.thread.start()
-        self.PI.thread.start()
-        self.plot.start_timer()
+        if not self.PI.thread.isRunning() and not self.BL.thread.isRunning():
+            self.BL.thread.start()
+            self.PI.thread.start()
+            self.plot.start_timer()
 
+        else:
+            print('[ERROR] Positioners are busy, wait before performing another action.')
+
+     
     #region: B8-**Mapping**
     def startMap(self):
         """
@@ -350,12 +355,7 @@ class Main(QMainWindow):
         if filePath:
             self.filename = os.path.basename(filePath)
 
-<<<<<<< Updated upstream
             with open(filePath, "a") as f:
-=======
-        #clear plot
-        #self.plot.clearPlot()
->>>>>>> Stashed changes
 
                 #If a new experiment has started, create a parent in the datatree with that filename
                 self.plot.dataTree.setFilename(self.filename)
@@ -411,6 +411,7 @@ class Main(QMainWindow):
         self.mapping.labelXpos.setText(str(position[0]))
         self.mapping.labelYpos.setText(str(position[1]))
         self.mapping.labelZpos.setText(str(position[2]))
+        self.mapping.labelPzpos.setText(str(position[3]))
 
     #region: C2-Progress Bar
     def _progress(self, status:dict[str,str]):
@@ -424,25 +425,16 @@ class Main(QMainWindow):
 
     #region: C3-Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
-<<<<<<< Updated upstream
     def newPlot(self, echemSettings, dataTree=True):
         self.plot.setAxes(echemSettings)
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
             self.plot.dataTree.newEntry(echemSettings.technique)
-=======
-    def newPlot(self, echemSettings, file, dataTree=True):
-        self.writer.writeEchemSettings(echemSettings, file)
-        #self.plot.clearPlot()
-        self.plot.setAxes(echemSettings)
-        self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
->>>>>>> Stashed changes
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):
         #Update plot with latest data
-        print(data)
         self.plot.add_data_point(data)
 
         #append echemData to current run
