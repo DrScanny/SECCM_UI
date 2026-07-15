@@ -44,13 +44,12 @@ class DataTree(QWidget):
         #optional: expanded by default
         self.file_node.setExpanded(True)
     
-    def newtechniqueEntry(self, settings:UI_Settings.echemSettings):
-        tech= settings.technique
-        self.techCount[tech]+=1
+    def newtechniqueEntry(self, technique):
+        self.techCount[technique]+=1
 
-        self.active= UI_Settings.echemData(technique = tech, 
-                                            index = self.techCount[tech], 
-                                            name= f"{tech}_{self.techCount[tech]}")
+        self.active= UI_Settings.echemData(technique = technique, 
+                                            index = self.techCount[technique], 
+                                            name= f"{technique}_{self.techCount[technique]}")
 
         techniqueNode = QTreeWidgetItem()
         techniqueNode.setText(0, self.active.name)

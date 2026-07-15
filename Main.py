@@ -349,42 +349,49 @@ class Main(QMainWindow):
             print(f'(x,y):{coordinates}')
 
         """
+        try:
     
-        #Create savefile for data measurement
-        #Create savefile for data measurement
-        filePath, _ = QFileDialog.getSaveFileName(
-                                                    parent=None,
-                                                    caption="Create Save File",
-                                                    dir="",
-                                                    filter="Text Files (*.txt);;All Files (*)")
-        
-        self.filename = os.path.basename(filePath)
-        self.plot.dataTree.setFilename(self.filename)
+            #Create savefile for data measurement
+            #Create savefile for data measurement
+            filePath, _ = QFileDialog.getSaveFileName(
+                                                        parent=None,
+                                                        caption="Create Save File",
+                                                        dir="",
+                                                        filter="Text Files (*.txt);;All Files (*)")
+            
+            self.filename = os.path.basename(filePath)
+            self.plot.dataTree.setFilename(self.filename)
 
-        #clear plot
-        #self.plot.clearPlot()
+            #clear plot
+            #self.plot.clearPlot()
 
-        self.data_file = open(filePath, "a", encoding="utf-8-sig")  
+            self.data_file= open(filePath, "a", encoding="utf-8-sig")  
 
-        # Loading technique from techList
-        self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
+            # Loading technique from techList
+            self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
-        match self.mapping.settingsMapping.mode:
-            case 0:
-                print("[TESTING] Echem only")
-                self.BiologicRun()
+            match self.mapping.settingsMapping.mode:
+                case 0:
+                    print("[TESTING] Echem only")
+                    self.BiologicRun()
+                        
+                case 1:
+                    print("[TESTING] SECCM tip down only")
+                    self.mapping.mapCoordinates()
+                    self.runSECCM()
+                    #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+                    #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
                     
-            case 1:
-                print("[TESTING] SECCM tip down only")
-                self.mapping.mapCoordinates()
-                self.runSECCM()
-                #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-                #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-                
-            case 2:
-                print("SECM Mapping")
-                self.mapping.mapCoordinates()
-                self.runSECM()
+                case 2:
+                    print("SECM Mapping")
+                    self.mapping.mapCoordinates()
+                    self.runSECM()
+
+        except Exception as err:
+            print(f'[ERROR] **Main|stopAll**:{err}')
+
+        finally:
+            self.data_file.close()
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
@@ -437,11 +444,7 @@ class Main(QMainWindow):
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
-<<<<<<< Updated upstream
             self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
-=======
-            self.plot.dataTree.newtechniqueEntry(echemSettings)
->>>>>>> Stashed changes
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):
