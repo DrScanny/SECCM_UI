@@ -437,7 +437,11 @@ class Main(QMainWindow):
 
         #Create new QTreeWidgetItem based on the 
         if dataTree:
+<<<<<<< Updated upstream
             self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
+=======
+            self.plot.dataTree.newtechniqueEntry(echemSettings)
+>>>>>>> Stashed changes
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
     def updatePlot(self, data):

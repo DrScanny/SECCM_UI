@@ -132,10 +132,17 @@ class SECM_PI(QObject):
                 
                 while any(list(self.Piezo.gcscommands.IsMoving().values())):
 
+<<<<<<< Updated upstream
                     self.position.emit( [-1*round(self.XYstage.qPOS()['1'],3), 
                                     round(self.XYstage.qPOS()['2'],3), 
                                     round(self.Zstage.qPOS()['1']-25,3), 
                                     round(self.Piezo.qPOS()['3'],3)])  
+=======
+                    self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
+                                       round(self.XYstage.qPOS()['2'],3), 
+                                       round(self.Zstage.qPOS()['1']-25,3), 
+                                       round(self.Piezo.qPOS()['3'],3)])
+>>>>>>> Stashed changes
 
                     #While the Piezo is moving, stop if **Stop Criteria** is met
                     if self.event_stopTip.is_set():
@@ -147,7 +154,11 @@ class SECM_PI(QObject):
                         self.Piezo.gcscommands.HLT(noraise=True)
                         print('[SECCM] Approach Interrupted by User!')
                         return 
+<<<<<<< Updated upstream
                     
+=======
+        
+>>>>>>> Stashed changes
                     time.sleep(0.25)
 
                 #If the Piezo reaches its limit without being stopped, reset the piezo and move the Z-Stage by the corresponding amount
