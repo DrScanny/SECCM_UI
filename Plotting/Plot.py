@@ -13,31 +13,30 @@ import time
 from datetime import datetime
 
 from pyqtgraph.exporters import ImageExporter
-from itertools import cycle
 
 from Plotting.PlotTree import DataTree
 from Plotting.colourpalettepopup import ColorPopup, PaletteButton
+from Plotting.DataWindow import DataWindow
 
 from Plotting import UI_Settings
 from Plotting.DesignMenu import ColorMenu, ShapeMenu
 
-#Popwindow that loads data from datatree (not yet functional)
-class DataWindow(QWidget):
-    def __init__(self, echemData):
-        super().__init__()
+"""
+Section to show data acquired through plots, it will include 2 parts:
+   I- Graph area to plot both 1D (scatter/line plots) and 2D (scatter/heat maps) plots
+   II- Data management with multiple levels to organize the different measurements acquired at each landing
 
-        self.setWindowTitle(echemData.name)
-        self.resize(800, 600)
+I- Graph area
+   a) Live plotting the data acquired by the potentiostat
+      Have the options for each axis to pick the data variable for example in a CV the data is comprised of {t: time, E: potential, I: current, cycle: cycle number}
+   b) Plot data from datatree
+      i) 1D (scatter/line plots)
+      ii) 2D (scatter/heat maps) plots
+   c) Extra features: the graph area should be visually pleasant, have options to zoom in part of the graph, save the plog as an image, 
+      report the coordinate of each data point, basic plot customization (scatter options, color, trace options, color map, legends) ...
 
-        layout = QVBoxLayout(self)
-
-        self.plotWidget = pg.PlotWidget()
-        layout.addWidget(self.plotWidget)
-
-        x = echemData.t
-        y = echemData.Ewe
-
-        self.plotWidget.plot(x, y, pen='k')
+   1st assignment is to do basic live plotting see below plot1D_Live(self)
+"""
 
 class Plot(QWidget):
     def __init__(self):
@@ -143,7 +142,7 @@ class Plot(QWidget):
         #Line size selector
         self.linesizeSelector = QSpinBox()
         self.linesizeSelector.setRange(1,20)
-        self.linesizeSelector.setValue(2)
+        self.linesizeSelector.setValue(self.lineSize)
         self.lineplotoptionslayout.addWidget(self.linesizeSelector)
         self.linesizeSelector.valueChanged.connect(self.change_line_size)
 
@@ -183,7 +182,6 @@ class Plot(QWidget):
         self.scattercolourSelector.setFixedSize(17,17)
         self.scatterColorMenu.colorSelected.connect(self.change_scatter_color)
         self.scatterplotoptionslayout.addWidget(self.scattercolourSelector)
-
         #Scatterplot shape selector
         self.scatterShapeMenu = ShapeMenu()
         self.scattershapeSelector = QPushButton()
@@ -191,11 +189,10 @@ class Plot(QWidget):
         self.scattershapeSelector.setMenu(self.scatterShapeMenu)
         self.scatterShapeMenu.shapeSelected.connect(self.change_scatter_shape)
         self.scatterplotoptionslayout.addWidget(self.scattershapeSelector)
-
         #Scatterplot marker size selector
         self.markersizeSelector = QSpinBox()
         self.markersizeSelector.setRange(1,20)
-        self.markersizeSelector.setValue(8)
+        self.markersizeSelector.setValue(self.scatterSize)
         self.scatterplotoptionslayout.addWidget(self.markersizeSelector)
         self.markersizeSelector.valueChanged.connect(self.change_scatter_size)
 
@@ -239,6 +236,8 @@ class Plot(QWidget):
 
         #add spacing
         self.controlLayout.addSpacing(20)
+
+        #add spacing
         self.controlLayout.addStretch()
 
         #setup plot
@@ -246,12 +245,14 @@ class Plot(QWidget):
         self.mainLayout.addWidget(self.plotSplitter)
 
         #region: datatree
+
         #creating data tree
         self.dataTree= DataTree()
         self.plotSplitter.addWidget(self.dataTree)
 
         #if an item in the data tree is clicked, load the relevant dataset
-        #self.dataTree.tree.itemClicked.connect(self.tree_item_clicked)
+        self.dataTree.tree.itemClicked.connect(self.dataTree.tree_item_clicked)
+        self.dataTree.clickedData.connect(lambda obj, landing: self.open_plot_window(obj, landing))
         #endregion
         
         self.framePlot = QFrame()
@@ -290,8 +291,11 @@ class Plot(QWidget):
         self.linecolorpopup.paletteSelected.connect(self.palette_clicked)
 
         #endregion
-        self.plotrefresh= QTimer(self)
+        self.plotrefresh = QTimer(self)
         self.plotrefresh.timeout.connect(self.refreshPlot)
+
+        #data window list
+        self.dataWindows = []
 
     def setup_plot(self):
     
@@ -367,7 +371,7 @@ class Plot(QWidget):
     #method that updates the graph as data is being acquired from the potentiostat
 
     def add_data_point(self, parsed_row):
-    
+        print(self.index)
         self.xData[self.index]= parsed_row[self.x_variable]
         self.yData[self.index]= parsed_row[self.y_variable]
         self.index+=1
@@ -378,7 +382,8 @@ class Plot(QWidget):
     #method that sets the axes labels based on chosen techniques
     def setAxes(self, techSettings:UI_Settings.echemSettings):
 
-        arraySize= int(2*techSettings.duration/techSettings.dt)
+        arraySize= int(techSettings.duration/techSettings.dt)+2
+        print(arraySize)
         self.yData= np.zeros(arraySize)
         self.xData= np.zeros(arraySize)
         self.index= 0
@@ -386,6 +391,8 @@ class Plot(QWidget):
         timeLabel = "Time (s)"
         potentialLabel = "Potential (V)"
         currentLabel = "Current (A)"
+
+        print(techSettings.technique)
         
         if techSettings.technique == 'OCP':
             self.x_variable= 't'
@@ -670,6 +677,12 @@ class Plot(QWidget):
     def stop_timer(self):
         self.plotrefresh.stop()
     #endregion
+
+    def open_plot_window(self, dataObject, landing):
+        data_window = DataWindow(dataObject, landing)
+        self.dataWindows.append(data_window)
+        self.dataWindows[-1].show()
+
 
 
 if __name__ == '__main__':
