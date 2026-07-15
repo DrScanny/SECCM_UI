@@ -371,7 +371,6 @@ class Plot(QWidget):
     #method that updates the graph as data is being acquired from the potentiostat
 
     def add_data_point(self, parsed_row):
-        print(self.index)
         self.xData[self.index]= parsed_row[self.x_variable]
         self.yData[self.index]= parsed_row[self.y_variable]
         self.index+=1
@@ -382,8 +381,7 @@ class Plot(QWidget):
     #method that sets the axes labels based on chosen techniques
     def setAxes(self, techSettings:UI_Settings.echemSettings):
 
-        arraySize= int(techSettings.duration/techSettings.dt)+2
-        print(arraySize)
+        arraySize= int(1.5*techSettings.duration/techSettings.dt)
         self.yData= np.zeros(arraySize)
         self.xData= np.zeros(arraySize)
         self.index= 0

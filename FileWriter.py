@@ -10,7 +10,7 @@ class FileWrite():
         for name, value in Settings.__dict__.items():
             if settingCount == 1:
                 file.write("Technique,")
-                file.write(value)
+                file.write(str(value))
             elif settingCount == 2:
                 file.write("Potential,")
                 file.write(f"{value},V")
@@ -49,7 +49,7 @@ class FileWrite():
                 file.write(f"{value},V")
             elif settingCount == 14:
                 file.write("cycle,")
-                file.write(value)
+                file.write(str(value))
             elif settingCount == 15:
                 file.write("iRange,")
                 file.write(f"{value},A?")
@@ -58,11 +58,11 @@ class FileWrite():
                 file.write(f"{value},V")
             elif settingCount == 17:
                 file.write("bandwidth,")
-                file.write({value})
+                file.write(str(value))
                 file.write("\n")
             elif settingCount == 18:
                 #write header
-                file.write(value)
+                file.write(str(value))
             file.write("\n")
             settingCount += 1
 
