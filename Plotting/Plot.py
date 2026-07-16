@@ -149,7 +149,7 @@ class Plot(QWidget):
         #Scatterplot options -------
         #keep track of scatter parameters
         self.scatterChecked = True
-        self.scatterSize = 8
+        self.scatterSize = 6
         self.scatterShape = 'o'
         self.scatterColor = 'k'
         self.scatterColorMenu = ColorMenu()
@@ -297,6 +297,12 @@ class Plot(QWidget):
         #data window list
         self.dataWindows = []
 
+        #Window X and Y ranges
+        self.xmin = 0
+        self.ymin = 0
+        self.xmax = 0
+        self.ymax = 0
+
     def setup_plot(self):
     
         #stylizing the plot
@@ -399,24 +405,29 @@ class Plot(QWidget):
             self.y_variable= 'Ewe'
             xLabel= timeLabel
             yLabel= currentLabel 
+
         
         elif techSettings.technique == 'CA': 
             self.x_variable= 't'
             self.y_variable= 'Iwe'  
             xLabel= timeLabel
             yLabel= potentialLabel
+
     
         elif techSettings.technique == 'CP': 
             self.x_variable= 't'
             self.y_variable= 'Ewe'  
             xLabel= timeLabel
             yLabel= potentialLabel
+
         
-        else:
+        elif techSettings.technique == 'CV':
             self.x_variable= 'Ewe'
             self.y_variable= 'Iwe'  
             xLabel= potentialLabel
             yLabel= currentLabel
+        else:
+            print(f"from plotting.plot.setAxes method: {techSettings.technique} technique invalid")
         
         #bottom two lines currently not working due to a threading error that i can't figure out 
         #self.plotWindow.setLabel('bottom', xLabel)
@@ -665,6 +676,29 @@ class Plot(QWidget):
             vb.setMouseMode(pg.ViewBox.PanMode)
     
     #endregion
+
+    #region: Set window range (SECCM only)
+
+    def setWindowRange(self, seccmSettings:UI_Settings.SECCM, echemSettings:UI_Settings.echemSettings):
+        xmin = 0
+        xmax = 0 + echemSettings.duration
+        if seccmSettings.stop == 0:
+            print(0)
+        elif seccmSettings.stop == 1:
+            print(1)
+            ymin = min(seccmSettings.Istop, 0-seccmSettings.Istop)
+            ymax = max(seccmSettings.Istop, 0-seccmSettings.Istop)
+        elif seccmSettings.stop == 2:
+            print(2)
+        else:
+            print(f"from plot.setWindowRange method, {seccmSettings.stop} stop parameter invalid")
+
+        #set the X and Y range of the plot
+        self.plotWindow.setXRange(xmin, xmax, 0.02)
+        self.plotWindow.setYRange(ymin, ymax, 0.02)
+    
+    #endregion
+
 
     #region: timer functions
     def start_timer(self):

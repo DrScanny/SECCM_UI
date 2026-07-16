@@ -429,6 +429,10 @@ class Main(QMainWindow):
         self.plot.clearPlot()
         self.plot.setAxes(echemSettings)
 
+<<<<<<< Updated upstream
+=======
+        #Create a new technique node
+>>>>>>> Stashed changes
         self.plot.dataTree.newtechniqueEntry(echemSettings.technique)
        
     #From the emitted echem data, plot live data and store it in an instance of UI_Settings.echemData: self.plot.dataTree.active
