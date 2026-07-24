@@ -33,6 +33,7 @@ class SECCM():
 @dataclass
 class SECM():
     speed: float= 1 #Approach speed in um
+    positioner: int= 0 # Positioner to use: Z-stage(coarse approach)->0, Piezo(fine approach)->1
     retract: float= 50 #Tip retraction height after landing in um
     experiment: int= 0 #SECM technique 0->approach curve, 1-> constant distance map
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach

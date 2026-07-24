@@ -27,18 +27,19 @@ class SECCM():
     stop: int= 0 #Technique to use for approach stop: 0->OCP, 1-> DC Potentiostatic, 2-> AC 
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
-    iRange: int= 0 #Current Range by default AUTO
+    iRange: int= 0 #Current Range by default 
 
 @dataclass
 class SECM():
     speed: float= 1 #Approach speed in um
+    positioner: int= 0 # Positioner to use: Z-stage(coarse approach)->0, Piezo(fine approach)->1
     retract: float= 50 #Tip retraction height after landing in um
     experiment: int= 0 #SECM technique 0->approach curve, 1-> constant distance map
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     stop:int=0
     limPos: float=200 #Potentiostatic: Current treshold for negative feedback
     limNeg: float=50 #Potentiostatic: Current treshold for positive feedback
-    iRange: int= 1 #Current Range by default AUTO
+    iRange: int= 1 #Current Range by default 
 
 @dataclass
 class echemSettings():

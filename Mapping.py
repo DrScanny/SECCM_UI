@@ -341,7 +341,7 @@ class Mapping(QWidget):
         comboExperiment.currentIndexChanged.connect(lambda: self.stackApproach.setCurrentIndex(comboExperiment.currentIndex()))
         comboExperiment.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'experiment', comboExperiment.currentIndex()))
 
-        sep1= QFrame(); layoutSECM.addWidget(sep1, 3,0,1,3) 
+        sep1= QFrame(); layoutSECM.addWidget(sep1, 4,0,1,3) 
         sep1.setFrameShape(QFrame.Shape.HLine)
         sep1.setFrameShadow(QFrame.Shadow.Sunken)
 
@@ -359,46 +359,51 @@ class Mapping(QWidget):
         layoutFrame= QGridLayout(frame)
         self.setLayout(self.layoutFrame)
 
-        labelPotential= QLabel('Potential'); layoutFrame.addWidget(labelPotential,0,0)
-        labelPotential.setToolTip("Set the potential to apply during SECM approach")
-        labelPotentialUnit= QLabel('V'); layoutFrame.addWidget(labelPotentialUnit,0,2)
-        linePotential= QLineEdit(); layoutFrame.addWidget(linePotential,0,1)
-        linePotential.setFixedWidth(60); linePotential.setText('0.1')
-        linePotential.editingFinished.connect(lambda: setattr(self.settingsSECM, 'Eapp', float(linePotential.text())))
+        labelPositioner= QLabel('Positioner'); layoutFrame.addWidget(labelPositioner, 0,0)
+        comboPositioner= QComboBox(); layoutFrame.addWidget(comboPositioner, 0,1,1,2)
+        comboPositioner.addItem('Z-stage')
+        comboPositioner.addItem('Piezo')
+        comboPositioner.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'experiment', comboPositioner.currentIndex()))
 
-        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,1,0) 
-        labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
-        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 1,1)
-        iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
-        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
-        iRangeCombo.setCurrentIndex(1)
-
-        labelSpeed= QLabel('Speed'); layoutFrame.addWidget(labelSpeed,2,0)
-        labelSpeedUnit= QLabel('\u03bcm/s'); layoutFrame.addWidget(labelSpeedUnit,2,2)
+        labelSpeed= QLabel('Speed'); layoutFrame.addWidget(labelSpeed,1,0)
         labelSpeed.setToolTip('Set the piezo speed for tip approach (0.1 to 5 \u03bcm/s). Higher speed (>1 \u03bcm/s), increases the likelihood of a tip crash!')
-        
-        lineSpeed= QLineEdit(); layoutFrame.addWidget(lineSpeed,2,1)
+        lineSpeed= QLineEdit(); layoutFrame.addWidget(lineSpeed,1,1)
         lineSpeed.setText('1')
         lineSpeed.setFixedWidth(60)
         lineSpeed.editingFinished.connect(lambda: setattr(self.settingsSECM, 'speed', float(lineSpeed.text())))
 
-        labelStop= QLabel('Stop Method'); layoutFrame.addWidget(labelStop,3,0) 
+        labelPotential= QLabel('Potential'); layoutFrame.addWidget(labelPotential,2,0)
+        labelPotential.setToolTip("Set the potential to apply during SECM approach")
+        linePotential= QLineEdit(); layoutFrame.addWidget(linePotential,2,1)
+        linePotential.setFixedWidth(60); linePotential.setText('0.1')
+        linePotential.editingFinished.connect(lambda: setattr(self.settingsSECM, 'Eapp', float(linePotential.text())))
+
+        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,3,0) 
+        labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
+        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 3,1)
+        iRangeCombo.setFixedWidth(80)
+        iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
+        iRangeCombo.setCurrentIndex(1)
+
+        labelStop= QLabel('Stop'); layoutFrame.addWidget(labelStop,4,0) 
         labelStop.setToolTip("""Set stop criteria for positive and negative feedback
                              1- Relative current change: For a bulk current of 1e-6 A with a 200% stop criteria, the tip will stop if the current increases above 2e-6 A 
                              2- Absolute change in current: For a bulk current of 1e-6 A with \u0394I of 0.5e-6 A, the tip will stop if the current increases above 1.5e-6 A
                              3- Current limit: Regardless of the bulk current, the tip will stop if the measured current increase above this value""")
         
-        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,3,1)
+        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,4,1)
+        comboStop.setFixedWidth(90)
         comboStop.addItems(('\u0394I (%)', '\u0394I (A)', 'lim I (A)'))
         comboStop.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'limUnit', comboStop.currentIndex()))
         
-        labelPosI= QLabel('Positive'); layoutFrame.addWidget(labelPosI,4,0) 
-        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,4,1)
+        labelPosI= QLabel('Positive'); layoutFrame.addWidget(labelPosI,5,0) 
+        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,5,1)
         linePosI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limPos', float(linePosI.text())))
         linePosI.setText('200'); linePosI.setFixedWidth(60)
         
-        labelNegI= QLabel('Negative'); layoutFrame.addWidget(labelNegI,5,0) 
-        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,5,1)
+        labelNegI= QLabel('Negative'); layoutFrame.addWidget(labelNegI,5,2) 
+        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,5,3)
         lineNegI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limNeg', float(lineNegI.text())))
         lineNegI.setText('50'); lineNegI.setFixedWidth(60)
 
