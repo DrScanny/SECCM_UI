@@ -114,15 +114,15 @@ class SECM_PI(QObject):
     def approach(self):
 
         try:
-
             #First step is to prepare the Z-stage or piezo stage for SECM approach depending on user choice
             positioner= self.Zstage
 
             if self.settings.positioner== 0:
                 print("Preparing Z-stage for SECM approach (~ 5s), please wait...")
                 self.Zstage.gcscommands.VEL('1', self.settings.speed/1000)
+                self.event_piezoReady.set()
+                time.sleep(5)
                 self.Zstage.gcscommands.MOV('1', 0)
-                
                 
             elif self.settings.positioner== 1:
                 print("Preparing Piezo for SECM approach (~ 20s), please wait...")
@@ -145,13 +145,13 @@ class SECM_PI(QObject):
                     
                 #Once all positioners are set, we are ready for the approach
                 self.Piezo.gcscommands.VEL('3', self.settings.speed)
+                self.event_piezoReady.set()
+                time.sleep(5)
                 self.Piezo.gcscommands.MOV('3', 0)
 
             else:
                 print('[ERROR] Positioner not recognized')
                 return
-            
-            self.event_piezoReady.set()
 
             while any(list(positioner.gcscommands.IsMoving().values())):
 
@@ -170,7 +170,6 @@ class SECM_PI(QObject):
                     positioner.gcscommands.HLT(noraise=True)
                     print('[SECCM] Approach Interrupted by User!')
                     return 
-        
                  
         except GCSError as err:
             print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
@@ -192,7 +191,6 @@ class SECM_PI(QObject):
     #region: Utility 
     def clean(self):
         self.finished.emit()
-
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECCM BL
@@ -225,10 +223,14 @@ class SECM_BL(QObject):
     def approach(self):
     
         try:
+            #Storage for averaging data
             nData=500
-            nBulk= 25000
             iData=np.zeros(nData)
+
+            #Storage for measuring bulk current
+            nBulk= 25000
             iBulkData= np.zeros(nBulk)
+
             #Wait until positioners are reset to start potentiostat
             self.event_piezoReady.wait()
             
@@ -237,7 +239,8 @@ class SECM_BL(QObject):
             self.technique.emit(approachSettings)
             self.loadTechnique(approachSettings)
             self.api.StartChannel(self.id_, self.channel)
-            
+
+            #Measuring bulk current first
             for i in range(nBulk): 
 
                 data= self.api.GetData(self.id_, self.channel)
@@ -253,6 +256,7 @@ class SECM_BL(QObject):
             iMin, iMax= self.tipStop(iBulk)
             print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')    
 
+            # Once bulk current is established, start true measurement
             while True: 
 
                 for i in range(nData):
@@ -271,14 +275,14 @@ class SECM_BL(QObject):
                     if self.threadInstance.isInterruptionRequested():
                         return
                     
-                    echemData= np.average(iData[i])
-                    self.echemData.emit(echemData)
+                echemData= np.average(iData)
+                self.echemData.emit(echemData)
 
-                    if echemData<iMin or echemData>iMax: # Function that determine if the tip should be stopped based on the stop criteria
-                        self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
-                        print('[DEBUG] Tip Down Interrupted by Stop Criteria')
-                        return
-                    
+                if echemData<iMin or echemData>iMax: # Function that determine if the tip should be stopped based on the stop criteria
+                    self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
+                    print('[DEBUG] Tip Down Interrupted by Stop Criteria')
+                    return
+                
         except Exception as err:
             # Handle the exception gracefully
             print(f"[ERROR] **SECM|SECM_BL|approach**: {exception_brief(err, self.verbosity >= 1)}")

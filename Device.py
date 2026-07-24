@@ -109,7 +109,7 @@ class PIconnect(QObject):
                 elif  self.PIname==self.deviceNames['XY']: #For XY-stage Connect -> Activate Servo -> Reference     
                     
                     self.PIdevice.gcscommands.SVO({1:1, 2:1})
-                    self.PIdevice.gcscommands.VEL({1:1, 2:1})
+                    self.PIdevice.gcscommands.VEL({1:2, 2:2})
                     self.PIdevice.gcscommands.FRF()
 
                 elif self.PIname==self.deviceNames['Pz']: #For Piezo Connect -> Activate Servo   
@@ -260,7 +260,6 @@ class BLconnect(QObject):
         self.api.Disconnect(self.id_)
         print('[VMP-300] Disconnected')
   
-
 class DeviceManager(QWidget):
 
     startCommand= Signal(object)
