@@ -160,7 +160,7 @@ class Mapping(QWidget):
 
     #region: Mapping
     def widgetMapping(self):
-        self.groupMapSize= QGroupBox('Map Settings'); self.groupMapSize.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
+        self.groupMapSize= QGroupBox('Mapping'); self.groupMapSize.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         self.layoutMapSize= QGridLayout(self.groupMapSize)
         self.layoutFrame.addWidget(self.groupMapSize)
 
@@ -210,6 +210,12 @@ class Mapping(QWidget):
 
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
+
+        sep1= QFrame(); self.layoutMapSize.addWidget(sep1,5,0,1,3) 
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        sep1.setFrameShadow(QFrame.Shadow.Sunken)
+
+        self.buttonMap= QPushButton('Start'); self.layoutMapSize.addWidget(self.buttonMap,6,0,1,3) 
     
         self.lineXdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dX', float(self.lineXdistance.text())))
         self.lineYdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dY', float(self.lineYdistance.text())))
@@ -221,10 +227,8 @@ class Mapping(QWidget):
 
         self.stackMap= QStackedWidget()
         self.layoutFrame.addWidget(self.stackMap)
-        labelDefault= QLabel()
-        self.stackMap.addWidget(labelDefault)
-        self.stackMap.addWidget(self.widgetSECCM())
         self.stackMap.addWidget(self.widgetSECM())
+        self.stackMap.addWidget(self.widgetSECCM())
         self.stackMap.setCurrentIndex(0)
 
     def widgetSECCM(self):
@@ -378,32 +382,32 @@ class Mapping(QWidget):
         linePotential.setFixedWidth(60); linePotential.setText('0.1')
         linePotential.editingFinished.connect(lambda: setattr(self.settingsSECM, 'Eapp', float(linePotential.text())))
 
-        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,3,0) 
+        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,2,2) 
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
-        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 3,1)
+        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,3)
         iRangeCombo.setFixedWidth(80)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
         iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
         iRangeCombo.setCurrentIndex(1)
 
-        labelStop= QLabel('Stop'); layoutFrame.addWidget(labelStop,4,0) 
+        labelStop= QLabel('Stop'); layoutFrame.addWidget(labelStop,3,0) 
         labelStop.setToolTip("""Set stop criteria for positive and negative feedback
                              1- Relative current change: For a bulk current of 1e-6 A with a 200% stop criteria, the tip will stop if the current increases above 2e-6 A 
                              2- Absolute change in current: For a bulk current of 1e-6 A with \u0394I of 0.5e-6 A, the tip will stop if the current increases above 1.5e-6 A
                              3- Current limit: Regardless of the bulk current, the tip will stop if the measured current increase above this value""")
         
-        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,4,1)
+        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,3,1)
         comboStop.setFixedWidth(90)
         comboStop.addItems(('\u0394I (%)', '\u0394I (A)', 'lim I (A)'))
         comboStop.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'limUnit', comboStop.currentIndex()))
         
-        labelPosI= QLabel('Positive'); layoutFrame.addWidget(labelPosI,5,0) 
-        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,5,1)
+        labelPosI= QLabel('Positive'); layoutFrame.addWidget(labelPosI,4,0) 
+        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,4,1)
         linePosI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limPos', float(linePosI.text())))
         linePosI.setText('200'); linePosI.setFixedWidth(60)
         
-        labelNegI= QLabel('Negative'); layoutFrame.addWidget(labelNegI,5,2) 
-        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,5,3)
+        labelNegI= QLabel('Negative'); layoutFrame.addWidget(labelNegI,4,2) 
+        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,4,3)
         lineNegI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limNeg', float(lineNegI.text())))
         lineNegI.setText('50'); lineNegI.setFixedWidth(60)
 

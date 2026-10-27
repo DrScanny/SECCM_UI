@@ -131,6 +131,7 @@ class Main(QMainWindow):
         self.plotFrame.setFixedWidth(800)
         self.plotLayout= QVBoxLayout(self.plotFrame)
         self.plot= Plot.Plot(); self.plotLayout.addWidget(self.plot)
+        self.plot.start_timer()
        
         #region: A8-Signals
         #Displaying messages in UI log by connecting [Signal]:-ConsoleStream- to [Method]: -append_text-
@@ -151,14 +152,13 @@ class Main(QMainWindow):
         self.experiments.list.itemDoubleClicked.connect(self.Main_AddTechnique)
         self.experiments.addButton.clicked.connect(self.Main_AddTechnique)
         self.experiments.tree.itemClicked.connect(self.Main_ChangeSettingsPage)
-        self.experiments.buttonStart.clicked.connect(self.startMap)
-        #self.experiments.buttonStop.clicked.connect(self.stopMap)
+        self.experiments.buttonStart.clicked.connect(self.startEchem)
+        self.mapping.buttonMap.clicked.connect(self.startMap)
+
         #endregion
         #endregion
 
         self.writer = FileWrite()
-
-
         
     #region: B-Core Methods
     #Contains all the core methods for critical operation of the SECCM/SECM
@@ -207,13 +207,10 @@ class Main(QMainWindow):
             self.BL.worker.echemData.connect(lambda echemData: self.updatePlot(echemData))
             self.BL.worker.done.connect(self.plot.dataTree.storeData)
             self.BL.worker.finished.connect(lambda: self._progress({'end':'0'}))
-          
-            if not self.BL.thread.isRunning():
-                print('running thread')
-                self.BL.thread.start()
-                self.plot.start_timer()
-            else:
-                print('[ERROR] VMP-300 is busy, wait before performing another action.')
+            self.BL.worker.finished.connect(lambda: self._closeThread())
+       
+            self.BL.thread.start()
+            self.experiments.buttonStart.setEnabled(False)
 
         except Exception as err:
             f'[ERROR] **Main|BiologicRun**: {err}.'
@@ -286,61 +283,51 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-    #region: B6-SECCM
-    def runSECCM(self):
+        
+    #region: B7-Mapping
+    def runMap(self):
         
         self.events= {}
+        self.mapping.mapCoordinates()
+        runMapPositioner= SECM.SECM_PI
+        runMapEchem= SECM.SECM_BL
+        runMapSettings= self.mapping.settingsSECM
 
+        match UI_Settings.Mapping: #Choosing which mapping method to use SECM or SECCM
+            case 0: #SECM
+                print('[DEBUG] runMap SECM')
+                runMapPositioner= SECM.SECM_PI
+                runMapEchem= SECM.SECM_BL
+                runMapSettings= self.mapping.settingsSECM
+            case 1: #SECCM
+                runMapPositioner=  SECCM.SECCM_PI
+                runMapEchem= SECCM.SECCM_BL
+                runMapSettings= self.mapping.settingsSECCM
+                
         self.events['ready']= threading.Event()
         self.events['limit']= threading.Event()
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(SECCM.SECCM_PI, self.devices.PIdevices, self.mapping.settingsSECCM, self.mapping.settingsMapping.map, self.events)
-        self.PI.thread.started.connect(self.PI.worker.approachPI)
-        self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-
-        #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(SECCM.SECCM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECCM, self.techList, self.events)
-        self.BL.thread.started.connect(self.BL.worker.approachBL)
-        self.BL.worker.technique.connect(lambda technique: self.newPlot(technique, dataTree=False))
-        self.BL.worker.approachData.connect(lambda data: self.updatePlot(data))
-
-        self.BL.thread.start()
-        self.PI.thread.start()
-        self.plot.start_timer()
-
-    #region: B7-SECM
-    def runSECM(self):
-        
-        self.events= {}
-
-        self.events['ready']= threading.Event()
-        self.events['limit']= threading.Event()
-        self.events['stop']= threading.Event()
-
-        #Thread assigned to the positioners control during approach
-        self.PI= threadInit(SECM.SECM_PI, self.devices.PIdevices, self.mapping.settingsSECM, self.events)
+        self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, [0], self.events)
+        #self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, UI_Settings.Mapping.map, self.events)
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+        self.PI.worker.finished.connect(lambda: self._closeThread())
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(SECM.SECM_BL, self.devices.BL.potentiostat, self.mapping.settingsSECM, self.events)
+        self.BL= threadInit(runMapEchem, self.devices.BL.potentiostat, runMapSettings, [1], self.events)
         self.BL.thread.started.connect(self.BL.worker.approach)
         self.BL.worker.technique.connect(lambda settings: self.newPlot(settings, dataTree=False))
         self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
+        
+        self.BL.thread.start()
+        self.PI.thread.start()
+        self.experiments.buttonStart.setEnabled(False)
+        self.mapping.buttonMap.setEnabled(False)
 
-        if not self.PI.thread.isRunning() and not self.BL.thread.isRunning():
-            self.BL.thread.start()
-            self.PI.thread.start()
-            self.plot.start_timer()
-
-        else:
-            print('[ERROR] Positioners are busy, wait before performing another action.')
-
-     
-    #region: B8-**Mapping**
-    def startMap(self):
+    #region: B8-**Run**
+    def startEchem(self):
         """
         #Generates coordinates and stores them in settingsMapping.map
         self.mapping.landings()
@@ -350,48 +337,31 @@ class Main(QMainWindow):
 
         """
         try:
-    
-            #Create savefile for data measurement
-            #Create savefile for data measurement
-            filePath, _ = QFileDialog.getSaveFileName(
-                                                        parent=None,
-                                                        caption="Create Save File",
-                                                        dir="",
-                                                        filter="Text Files (*.txt);;All Files (*)")
-            
-            self.filename = os.path.basename(filePath)
-            self.plot.dataTree.setFilename(self.filename)
+            #Open and create a file for collected data
+            self.createFile()
 
-            #clear plot
-            #self.plot.clearPlot()
-
-            self.data_file= open(filePath, "a", encoding="utf-8-sig")  
-
-            # Loading technique from techList
+            # Loading echem technique from UI techLost
             self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
-            match self.mapping.settingsMapping.mode:
-                case 0:
-                    print("[TESTING] Echem only")
-                    self.BiologicRun()
-                        
-                case 1:
-                    print("[TESTING] SECCM tip down only")
-                    self.mapping.mapCoordinates()
-                    self.runSECCM()
-                    #self.SECCM.PI.worker.position.connect(lambda position: self._positionUpdate(position))
-                    #self.SECCM.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
-                    
-                case 2:
-                    print("SECM Mapping")
-                    self.mapping.mapCoordinates()
-                    self.runSECM()
+            # Starting in different thread biologic class
+            self.BiologicRun()            
 
         except Exception as err:
             print(f'[ERROR] **Main|stopAll**:{err}')
 
-        finally:
-            self.data_file.close()
+    def startMap(self):
+
+        try:
+            #Open and create a file for collected data
+            self.createFile()
+
+            # Starting in different thread SECM class
+            print("[DEBUG startSECM] Starting SECM Mapping")
+            self.runMap() #Call method to start SECM in new thread
+
+        except Exception as err:
+            print(f'[ERROR] **Main|stopAll**:{err}')
+
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
@@ -414,11 +384,20 @@ class Main(QMainWindow):
 
     #region: C-Utilities
     #Contains secondary methods that are helpful for core methods
-    # 1-
-    # 2-
-    # 3-
-    # 4-
-    
+
+    #region: CreateFile
+    def createFile(self):
+        filePath, _ = QFileDialog.getSaveFileName(
+                                                    parent=None,
+                                                    caption="Create Save File",
+                                                    dir="",
+                                                    filter="Text Files (*.txt);;All Files (*)")
+        
+        self.filename = os.path.basename(filePath)
+        self.plot.dataTree.setFilename(self.filename)
+
+        self.data_file= open(filePath, "a", encoding="utf-8-sig")  
+
     #region: C1-Positioner
     def _positionUpdate(self, position):
         self.mapping.labelXpos.setText(str(position[0]))
@@ -461,6 +440,20 @@ class Main(QMainWindow):
         
         dataToWrite = ",".join(map(str, [data['t'], data['Ewe'], data['Iwe'],data['cycle']]))
         self.writer.writeData(dataString=dataToWrite, file=self.data_file)
+
+    # Function that execute commands when a thread is closed
+    def _closeThread(self):
+        self.experiments.buttonStart.setEnabled(True) #Enable buttonStart to start echem measurements
+        self.mapping.buttonMap.setEnabled(True) #Enable buttonMap to start SECM or SECCM
+
+        try:
+            self.data_file #checking if file is open
+        except NameError:
+            print('[_closeThread] No datafile found to close')
+        else:
+            self.data_file.close()
+            print('Datafile closed')
+
      
     """
     def closeEvent(self, event):
