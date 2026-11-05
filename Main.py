@@ -142,7 +142,7 @@ class Main(QMainWindow):
         self.devices.endCommand.connect(lambda end: self._progress(end))
 
         #PI positioner commands by connecting [Signal]: -mapping- to [Method]: -PI-
-        self.mapping.buttonMove.clicked.connect(self.PImove)
+        self.mapping.buttonXYZ.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
 
@@ -239,6 +239,27 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PImoveTo**: {err}.'
 
+    def PIpiezo(self):
+
+        try:
+            move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text()), float(self.mapping.linePzmove.text())]
+
+            self.PI= threadInit(PI, self.devices.PIdevices, move)
+            self.PI.thread.started.connect(self.PI.worker.movePz)
+            self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+            self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
+
+            self._progress({'start': 'Positioner in movement... '})
+            self.mapping.linePzmove.setText('0')
+        
+        except Exception as err:
+            f'[ERROR] **Main|PImoveTo**: {err}.'
+
     #region: B4-PImoveTo
     def PImoveTo(self):
 
@@ -288,35 +309,38 @@ class Main(QMainWindow):
     def runMap(self):
         
         self.events= {}
+        PImethod= SECM.SECM_PI
+        BLmethod= SECM.SECM_BL
         self.mapping.mapCoordinates()
-        runMapPositioner= SECM.SECM_PI
-        runMapEchem= SECM.SECM_BL
-        runMapSettings= self.mapping.settingsSECM
+        mapSettings= self.mapping.settingsSECM
+        map= self.mapping.settingsMapping.map
+        # Loading echem technique from UI techLost
+        self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
 
+        print(f'map:{map} and techList:{self.techList}')
+       
         match UI_Settings.Mapping: #Choosing which mapping method to use SECM or SECCM
             case 0: #SECM
                 print('[DEBUG] runMap SECM')
-                runMapPositioner= SECM.SECM_PI
-                runMapEchem= SECM.SECM_BL
-                runMapSettings= self.mapping.settingsSECM
+           
             case 1: #SECCM
-                runMapPositioner=  SECCM.SECCM_PI
-                runMapEchem= SECCM.SECCM_BL
-                runMapSettings= self.mapping.settingsSECCM
+                PImethod= SECCM.SECCM_PI
+                BLmethod= SECCM.SECCM_BL
+                mapSettings= self.mapping.settingsSECCM
                 
         self.events['ready']= threading.Event()
         self.events['limit']= threading.Event()
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, [0], self.events)
+        self.PI= threadInit(PImethod, self.devices.PIdevices, mapSettings, map, self.events)
         #self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, UI_Settings.Mapping.map, self.events)
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
         self.PI.worker.finished.connect(lambda: self._closeThread())
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(runMapEchem, self.devices.BL.potentiostat, runMapSettings, [1], self.events)
+        self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, mapSettings, self.techList, self.events)
         self.BL.thread.started.connect(self.BL.worker.approach)
         self.BL.worker.technique.connect(lambda settings: self.newPlot(settings, dataTree=False))
         self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
@@ -325,17 +349,10 @@ class Main(QMainWindow):
         self.PI.thread.start()
         self.experiments.buttonStart.setEnabled(False)
         self.mapping.buttonMap.setEnabled(False)
+     
 
     #region: B8-**Run**
     def startEchem(self):
-        """
-        #Generates coordinates and stores them in settingsMapping.map
-        self.mapping.landings()
-        
-        for coordinates in self.mapping.settingsMapping.map:
-            print(f'(x,y):{coordinates}')
-
-        """
         try:
             #Open and create a file for collected data
             self.createFile()
@@ -350,7 +367,6 @@ class Main(QMainWindow):
             print(f'[ERROR] **Main|stopAll**:{err}')
 
     def startMap(self):
-
         try:
             #Open and create a file for collected data
             self.createFile()
@@ -361,7 +377,6 @@ class Main(QMainWindow):
 
         except Exception as err:
             print(f'[ERROR] **Main|stopAll**:{err}')
-
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
