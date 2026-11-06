@@ -209,7 +209,7 @@ class SECCM_BL(QObject):
         self.event_piezoReady:threading.Event= event['ready']
         self.event_piezoLimit:threading.Event= event['limit']
         self.event_stopTip:threading.Event= event['stop']
-        self.techniqueList= techniqueList
+        self.techniqueList= None
 
     def debug(self):
         print("[SECCM] VMP-300 Tip Down")

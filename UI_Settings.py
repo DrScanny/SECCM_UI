@@ -17,6 +17,9 @@ class Mapping():
     nX: int= 1 #Number of landings in X must be >=1
     nY: int= 1 #Number of landings in Y must be >=1
     map: list[list[int]]= field(default_factory=list) #Coordinates for mapping
+    wait: float=1 #Waiting time before taking measurement
+    speed: float=5 #Speed of XY-stage 
+    Ndata: int=5 #Number of datapoints to measure
     
 @dataclass
 class SECCM():
@@ -26,6 +29,7 @@ class SECCM():
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
     iRange: int= 0 #Current Range by default AUTO
+    techList: str= 'dummy value for now'
     #techList: list[echemSettings]= field(default_factory=list)
 
 @dataclass

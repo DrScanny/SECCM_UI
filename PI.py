@@ -92,7 +92,7 @@ class PI(QObject):
             #Moving Piezo
             if self.Pzmove !=0:
                 print('[move XYZ Debug] moving piezo')
-                self.Piezo.gcscommands.MOV('3', self.Pzmove)
+                self.Piezo.gcscommands.MVR('3', self.Pzmove)
          
             #Wait until Stages have stopped moving
             self.wait(interrupt=True)

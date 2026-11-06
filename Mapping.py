@@ -39,9 +39,6 @@ def _floatFromStr(text:str)-> float|None:
      coordinates= re.findall(pattern, text)
      return coordinates[0]
 
-sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-sizePolicy.setHorizontalStretch(0)
-sizePolicy.setVerticalStretch(0)
 
 class Mapping(QWidget):
       
@@ -49,7 +46,7 @@ class Mapping(QWidget):
         super().__init__()
         self.layoutWidget= QVBoxLayout(); self.setLayout(self.layoutWidget)
         self.frame= QFrame(); self.frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
-        self.frame.setSizePolicy(sizePolicy); self.frame.setFixedWidth(300)
+        self.frame.setFixedWidth(300)
         self.layoutFrame= QVBoxLayout(self.frame); self.layoutWidget.addWidget(self.frame)
         
         self.settingsMove= UI_Settings.Move()
@@ -75,6 +72,7 @@ class Mapping(QWidget):
         self.sepPositionSection1.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection1.setFrameShadow(QFrame.Shadow.Sunken)
 
+        self.buttonPosition= QPushButton('Pos'); self.layoutPosition.addWidget(self.buttonPosition, 1,0)
         self.labelX= QLabel('X (mm)'); self.layoutPosition.addWidget(self.labelX, 1,1); self.labelX.setStyleSheet("font-weight: bold;")
         self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelY= QLabel('Y (mm)');  self.layoutPosition.addWidget(self.labelY, 1,2); self.labelY.setStyleSheet("font-weight: bold;")
@@ -392,9 +390,10 @@ class Mapping(QWidget):
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
         iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,1)
         iRangeCombo.setFixedWidth(80)
+        iRangeCombo.setCurrentIndex(2)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
         iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
-        iRangeCombo.setCurrentIndex(1)
+        
 
         labelSpeed= QLabel('<i>v</i> (\u03bcm/s)'); layoutFrame.addWidget(labelSpeed,3,0)
         labelSpeed.setToolTip('Set the speed for tip approach (0.1 to 10 \u03bcm/s). Higher speed for coarse approach (>1 \u03bcm/s), increases the likelihood of a tip crash!')
@@ -454,22 +453,23 @@ class Mapping(QWidget):
         labelSpeed= QLabel('<i>v<i> (\u03bcm/s)'); layoutSECMsettings.addWidget(labelSpeed,3,0)
         labelSpeed.setToolTip('Set speed for mapping in XY')
         lineSpeed= QLineEdit(); layoutSECMsettings.addWidget(lineSpeed,3,1)
-        lineSpeed.setText('1')
+        lineSpeed.setText('5')
         lineSpeed.setFixedWidth(60)
-        lineSpeed.editingFinished.connect(lambda: setattr(self.settingsSECM, 'speed', float(lineSpeed.text())))
+        lineSpeed.editingFinished.connect(lambda: setattr(self.settingsMapping, 'speed', float(lineSpeed.text())))
 
         labelWait= QLabel('Wait (s)'); layoutSECMsettings.addWidget(labelWait,4,0)
         labelWait.setToolTip('Waiting time before acquiring echem measurement')
         lineWait= QLineEdit(); layoutSECMsettings.addWidget(lineWait,4,1)
         lineWait.setText('1')
         lineWait.setFixedWidth(60)
-        #lineWait.editingFinished.connect(lambda: setattr(self.settingsSECM, 'speed', float(lineSpeed.text())))
+        lineWait.editingFinished.connect(lambda: setattr(self.settingsMapping, 'wait', float(lineWait.text())))
 
-        labelN= QLabel('N data'); layoutSECMsettings.addWidget(labelN,5,0)
+        labelN= QLabel('N data'); layoutSECMsettings.addWidget(labelN,4,2)
         labelN.setToolTip('Number of echem datapoints to average')
-        lineN= QLineEdit(); layoutSECMsettings.addWidget(lineN,5,1)
-        lineN.setText('1')
+        lineN= QLineEdit(); layoutSECMsettings.addWidget(lineN,4,3)
+        lineN.setText('5')
         lineN.setFixedWidth(60)
+        lineWait.editingFinished.connect(lambda: setattr(self.settingsMapping, 'Ndata', int(lineN.text())))
 
         return frame
     

@@ -142,9 +142,11 @@ class Main(QMainWindow):
         self.devices.endCommand.connect(lambda end: self._progress(end))
 
         #PI positioner commands by connecting [Signal]: -mapping- to [Method]: -PI-
+        self.mapping.buttonPosition.clicked.connect(self.PIpos)
         self.mapping.buttonXYZ.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
+        self.mapping.buttonPiezo.clicked.connect(self.PIpiezoMove)
 
         self.devices.buttonStopAll.clicked.connect(self.stopAll)
 
@@ -217,6 +219,22 @@ class Main(QMainWindow):
     
     #endregion
 
+    #region: Position update
+    def PIpos(self):
+        try:
+            self.PI= threadInit(PI, self.devices.PIdevices)
+            self.PI.thread.started.connect(self.PI.worker.updatePosition)
+            self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+            self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
+        
+        except Exception as err:
+            f'[ERROR] **Main|PImoveTo**: {err}.'
+
     #region: B3-PImove
     def PImove(self):
 
@@ -239,8 +257,8 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PImoveTo**: {err}.'
 
-    def PIpiezo(self):
-
+    def PIpiezoMove(self):
+    
         try:
             move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text()), float(self.mapping.linePzmove.text())]
 
@@ -255,7 +273,7 @@ class Main(QMainWindow):
                 print('[ERROR] Positioners are busy, wait before performing another action.')
 
             self._progress({'start': 'Positioner in movement... '})
-            self.mapping.linePzmove.setText('0')
+            self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
         
         except Exception as err:
             f'[ERROR] **Main|PImoveTo**: {err}.'
@@ -304,53 +322,51 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-        
     #region: B7-Mapping
     def runMap(self):
         
-        self.events= {}
         PImethod= SECM.SECM_PI
         BLmethod= SECM.SECM_BL
         self.mapping.mapCoordinates()
-        mapSettings= self.mapping.settingsSECM
-        map= self.mapping.settingsMapping.map
-        # Loading echem technique from UI techLost
-        self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
-
-        print(f'map:{map} and techList:{self.techList}')
+        ExpSettings= self.mapping.settingsSECM
+        MapSettings= self.mapping.settingsMapping
        
         match UI_Settings.Mapping: #Choosing which mapping method to use SECM or SECCM
             case 0: #SECM
                 print('[DEBUG] runMap SECM')
            
             case 1: #SECCM
+                print('[DEBUG] runMap SECCM')
                 PImethod= SECCM.SECCM_PI
                 BLmethod= SECCM.SECCM_BL
-                mapSettings= self.mapping.settingsSECCM
-                
+                ExpSettings= self.mapping.settingsSECCM
+                #ExpSettings.techList= [self.itemTechPair[tech].settings for tech in self.experiments.getAll()] # Loading echem technique from UI techLost
+                 
+        self.events= {}
         self.events['ready']= threading.Event()
         self.events['limit']= threading.Event()
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(PImethod, self.devices.PIdevices, mapSettings, map, self.events)
-        #self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, UI_Settings.Mapping.map, self.events)
+        self.PI= threadInit(PImethod, self.devices.PIdevices, ExpSettings, MapSettings, self.events)
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
         self.PI.worker.finished.connect(lambda: self._closeThread())
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, mapSettings, self.techList, self.events)
+        self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, ExpSettings, MapSettings, self.events)
         self.BL.thread.started.connect(self.BL.worker.approach)
         self.BL.worker.technique.connect(lambda settings: self.newPlot(settings, dataTree=False))
         self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
         
-        self.BL.thread.start()
-        self.PI.thread.start()
-        self.experiments.buttonStart.setEnabled(False)
-        self.mapping.buttonMap.setEnabled(False)
-     
-
+        if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+                self.BL.thread.start()
+                self.experiments.buttonStart.setEnabled(False)
+                self.mapping.buttonMap.setEnabled(False)
+        else:
+            print('[ERROR] Positioners are busy, wait before performing another action.')
+    
     #region: B8-**Run**
     def startEchem(self):
         try:
