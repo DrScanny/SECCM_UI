@@ -115,7 +115,8 @@ class PIconnect(QObject):
                 elif self.PIname==self.deviceNames['Pz']: #For Piezo Connect -> Activate Servo   
                     
                     self.PIdevice.gcscommands.SVO({1:1, 2:1, 3:1})
-                    self.PIdevice.gcscommands.VEL({1:1, 2:1, 3:1})
+                    self.PIdevice.gcscommands.VEL({1:5, 2:5, 3:5})
+                    self.PIdevice.gcscommands.MOV({1:0, 2:0, 3:0})
 
                 #Wait until all stages are ready
                 while not all(list(self.PIdevice.qONT().values())): 

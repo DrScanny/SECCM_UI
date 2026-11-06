@@ -212,6 +212,7 @@ class Main(QMainWindow):
             self.BL.worker.finished.connect(lambda: self._closeThread())
        
             self.BL.thread.start()
+            self._progress({'start': 'Potentiostat Busy... '})
             self.experiments.buttonStart.setEnabled(False)
 
         except Exception as err:
@@ -251,7 +252,7 @@ class Main(QMainWindow):
             else:
                 print('[ERROR] Positioners are busy, wait before performing another action.')
 
-            self._progress({'start': 'Positioner in movement... '})
+            self._progress({'start': 'Positioner Busy... '})
             self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
         
         except Exception as err:
@@ -272,7 +273,7 @@ class Main(QMainWindow):
             else:
                 print('[ERROR] Positioners are busy, wait before performing another action.')
 
-            self._progress({'start': 'Positioner in movement... '})
+            self._progress({'start': 'Positioner Busy... '})
             self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
         
         except Exception as err:
@@ -295,7 +296,7 @@ class Main(QMainWindow):
             else:
                 print('[ERROR] Positioners are busy, wait before performing another action.')
 
-            self._progress({'start': 'Positioner in movement... '})
+            self._progress({'start': 'Positioner Busy... '})
 
         except AttributeError:
             print('[ERROR] **Main|PImoveTo** requires a position to be selected')
@@ -340,7 +341,7 @@ class Main(QMainWindow):
                 PImethod= SECCM.SECCM_PI
                 BLmethod= SECCM.SECCM_BL
                 ExpSettings= self.mapping.settingsSECCM
-                #ExpSettings.techList= [self.itemTechPair[tech].settings for tech in self.experiments.getAll()] # Loading echem technique from UI techLost
+                ExpSettings.techList= [self.itemTechPair[tech].settings for tech in self.experiments.getAll()] # Loading echem technique from UI techLost
                  
         self.events= {}
         self.events['ready']= threading.Event()
@@ -352,6 +353,7 @@ class Main(QMainWindow):
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
         self.PI.worker.finished.connect(lambda: self._closeThread())
+        self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
 
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, ExpSettings, MapSettings, self.events)
@@ -364,6 +366,7 @@ class Main(QMainWindow):
                 self.BL.thread.start()
                 self.experiments.buttonStart.setEnabled(False)
                 self.mapping.buttonMap.setEnabled(False)
+                self._progress({'start': 'SECM experiment '})
         else:
             print('[ERROR] Positioners are busy, wait before performing another action.')
     

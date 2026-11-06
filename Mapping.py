@@ -177,8 +177,8 @@ class Mapping(QWidget):
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
 
-        self.buttonMap= QPushButton('Start Map'); self.layoutExperiment.addWidget(self.buttonMap,6,0,1,3) 
-        self.buttonMap.setToolTip('Start mapping experiments based on chosen experiment settings and landings coordinates')
+        self.buttonMap= QPushButton('Start'); self.layoutExperiment.addWidget(self.buttonMap,6,0,1,3) 
+        self.buttonMap.setToolTip('Start experiments based on chosen experiment settings and landings coordinates')
 
     #region: Mapping
     def widgetMapping(self):

@@ -171,7 +171,6 @@ class SECM_PI(QObject):
     def wait(self, positioner):
 
         # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
-        print(positioner)
         while any(list(positioner.gcscommands.IsMoving().values())):
         
             #While the Piezo is moving, stop if **Stop Criteria** is met
