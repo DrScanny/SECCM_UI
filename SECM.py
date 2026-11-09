@@ -89,7 +89,7 @@ class SECM_PI(QObject):
                 return print('Interrupted by user')
         self.finished.emit()
 
-    #region: constDist_PI
+    #region: constDist
     def const_dist(self):
         
         for coordinates in self.mapSettings.map:
@@ -108,6 +108,7 @@ class SECM_PI(QObject):
             self.event_stop.clear()
             print('[DEBUG] Measurement done, moving to new coordinate')
 
+    #region: approach
     def approach(self, record=False): #Method for approach curve
 
         try:
@@ -171,6 +172,7 @@ class SECM_PI(QObject):
             self.Piezo.gcscommands.VEL('3', 1)
             self.finished.emit()
 
+    #region: wait
     def wait(self, positioner):
 
         # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
@@ -193,7 +195,8 @@ class SECM_PI(QObject):
                                 round(self.XYstage.qPOS()['2'],3), 
                                 round(self.Zstage.qPOS()['1']-25,3), 
                                 round(self.Piezo.qPOS()['3'],3)])
-
+            
+    #region: record
     def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float):
         """Set up data recorder to record 2 tables for first axis after next motion command.
         @type drec : pipython.datarectools.Datarecorder
