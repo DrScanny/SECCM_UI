@@ -308,7 +308,7 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-    #region: B7-Mapping
+    #region: Imaging
     def runMap(self):
         
         PImethod= SECM.SECM_PI
@@ -317,7 +317,7 @@ class Main(QMainWindow):
         ExpSettings= self.mapping.settingsSECM
         MapSettings= self.mapping.settingsMapping
        
-        print(f'map:{map} and techList:{self.techList}')
+        #print(f'map:{map} and techList:{self.techList}')
        
         match UI_Settings.Mapping: #Choosing which mapping method to use SECM or SECCM
             case 0: #SECM
@@ -449,8 +449,6 @@ class Main(QMainWindow):
         self.mapping.buttonReset.setEnabled(True)
         self.mapping.buttonMoveTo.setEnabled(True)
 
-
-
     #region: Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
     def newPlot(self, echemSettings, dataTree=True):
@@ -479,6 +477,7 @@ class Main(QMainWindow):
 
     # Function that execute commands when a thread is closed
     def _closeThread(self):
+        print('[DEBUG] thread closed')
         self._enableAction()
 
         try:

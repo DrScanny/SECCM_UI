@@ -75,7 +75,6 @@ class SECM_PI(QObject):
         self.event_stop:threading.Event= event['stop']
         self.threadInstance= threadInstance
         self.mapSettings= mapSettings
-        
 
     def debug(self):
         print('Positioner...')
@@ -109,26 +108,23 @@ class SECM_PI(QObject):
             print('[DEBUG] Measurement done, moving to new coordinate')
 
     #region: approach
-    def approach(self, record=False): #Method for approach curve
+    def approach(self, record=True): #Method for approach curve
 
         try:
-            positioner= self.Zstage #Default positioner use for approach curve
+            positioner:GCSDevice= self.Zstage #Default positioner use for approach curve
+            axis=0
             match self.settings.positioner: #Match the chosen positioner to the appropriate method for approaching
 
                 case 0: #Coarse positioning with Z-stage
                     print("Preparing Z-stage for SECM approach (~ 5s), please wait...")
                     self.Piezo.gcscommands.MOV('3', 0) #Making sure piezo is neutral
                     self.Zstage.gcscommands.VEL('1', self.settings.speed/1000) #Assign user chosen speed to Zstage
-                    self.wait(self.Zstage)
- 
-                    self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
-                    if record: #Option to record data from positioner
-                        self.recorddata(positioner, 36000, 0.1)
-                    self.Zstage.gcscommands.MOV('1', 0) #Move Z-stage toward sample
-                
+                    time.sleep(1)
+
                 case 1: #Coarse positioning with Z-stage
                     print("Preparing Piezo for SECM approach (~ 20s), please wait...")
                     positioner=self.Piezo
+                    axis=2
 
                     #Move Piezo up 100 um
                     self.Piezo.gcscommands.VEL('3', 10)
@@ -139,65 +135,64 @@ class SECM_PI(QObject):
                     self.Zstage.gcscommands.VEL('1', 10e-3)
                     self.Zstage.gcscommands.MVR('1', -0.1)
                     time.sleep(10)
-
                     self.Piezo.gcscommands.VEL('3', self.settings.speed)
-
-                    self.event_ready.wait() 
-                    if record: #Option to record data from positioner
-                        self.recorddata(positioner, 36000, 0.005)
-                    self.Piezo.gcscommands.MOV('3', 0)
 
                 case _:
                     print('[ERROR] Positioner not recognized')
                     return
+            
+            if record: #Option to record data from positioner
+                try:
+                    self.recorddata(positioner, 1024, 0.5, axis)
 
-            self.wait(positioner)
-            if record:
-                pitools.savegcsarray('gcsarray.dat', self.drec.header, self.drec.data)
-                 
+                except GCSError as err:
+                    print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
+                
+            self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
+            positioner.gcscommands.MOV(positioner.axes[axis], 0)
+
+            # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
+            while any(list(positioner.gcscommands.IsMoving().values())):
+            
+                #While the Piezo is moving, stop if **Stop Criteria** is met
+                if self.event_stop.is_set():
+                    positioner.gcscommands.HLT(noraise=True)
+                    print('[DEBUG] Landing succesful!?')
+                    return
+                                
+                #While the Piezo is moving, stop if user pressed stop
+                if self.threadInstance.isInterruptionRequested():
+                    positioner.gcscommands.HLT(noraise=True)
+                    print('[MSG] Approach Interrupted by User!')
+                    return
+
+                #While stage is moving it updates the position
+                self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
+                                    round(self.XYstage.qPOS()['2'],3), 
+                                    round(self.Zstage.qPOS()['1']-25,3), 
+                                    round(self.Piezo.qPOS()['3'],3)])
+    
         except GCSError as err:
-            print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
+            print(f'[ERROR] **SECM_PI|approach**: {err}.')
                 
         except IOError:
-            print('[ERROR] **SECCM|SECCM_PI|approachPI**: Controller unresponsive, check if its Turned ON.')
+            print('[ERROR]Controller unresponsive, check if its Turned ON.')
 
         except Exception as err:
             # Handle the exception gracefully
-            print(f"[ERROR] **SECCM|SECCM_PI|approachPI**: {err}")
+            print(f"[ERROR] **SECM_PI|approach**: {err}")
             # Optional: Return a default fallback value or re-raise with 'raise'
             return None 
         
         finally:
             # This block always runs, even if an exception or return occurred
+            print(self.drec.timescale)
             self.Piezo.gcscommands.VEL('3', 1)
             self.finished.emit()
 
-    #region: wait
-    def wait(self, positioner):
-
-        # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
-        while any(list(positioner.gcscommands.IsMoving().values())):
-        
-            #While the Piezo is moving, stop if **Stop Criteria** is met
-            if self.event_stop.is_set():
-                positioner.gcscommands.HLT(noraise=True)
-                print('[DEBUG] Landing succesful!?')
-                return
-                            
-            #While the Piezo is moving, stop if user pressed stop
-            if self.threadInstance.isInterruptionRequested():
-                positioner.gcscommands.HLT(noraise=True)
-                print('[MSG] Approach Interrupted by User!')
-                return 
-        
-            #While stage is moving it updates the position
-            self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
-                                round(self.XYstage.qPOS()['2'],3), 
-                                round(self.Zstage.qPOS()['1']-25,3), 
-                                round(self.Piezo.qPOS()['3'],3)])
             
     #region: record
-    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float):
+    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float, axis:int):
         """Set up data recorder to record 2 tables for first axis after next motion command.
         @type drec : pipython.datarectools.Datarecorder
         """
@@ -207,7 +202,7 @@ class SECM_PI(QObject):
         print('data recorder rate: {:.2f} Hz'.format(self.drec.samplefreq))
         self.drec.options = (datarectools.RecordOptions.ACTUAL_POSITION_2,
                         datarectools.RecordOptions.COMMANDED_POSITION_1)
-        self.drec.sources = self.drec.gcs.axes[3]
+        self.drec.sources = self.drec.gcs.axes[axis]
         self.drec.trigsources = datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
         self.drec.arm()
 
@@ -311,9 +306,12 @@ class SECM_BL(QObject):
 
                     if self.event_stop.is_set():
                         print('[MSG] Reached positioner limit, measurement stopped!')
+                        self.finished.emit()
                         return
 
                     if self.threadInstance.isInterruptionRequested():
+                        self.event_stop.set()
+                        self.finished.emit()
                         return
                 
         except Exception as err:
@@ -386,12 +384,13 @@ class SECM_BL(QObject):
 
         self.api.LoadTechnique(self.id_, self.channel, tech_file, ecc_parms, first=True, last=True, display=(self.verbosity > 1))
 
+    #region: tipStop
     def tipStop(self, ibulk):
             
             match self.settings.stop:
                 case 0: #tip stop based relative current change
-                    imax= np.abs(ibulk*self.settings.limPos/100)
-                    imin= np.abs(ibulk*self.settings.limNeg/100)
+                    imax= np.abs(ibulk)*(1+self.settings.limPos/100)
+                    imin= np.abs(ibulk)*(1-self.settings.limNeg/100)
                   
                 case 1: #tip stop based absolute current change
                     imax= np.abs(ibulk+self.settings.limPos)

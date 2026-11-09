@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from EchemSettings import EchemSettings
 
 @dataclass
 class Move():
@@ -29,7 +30,7 @@ class SECCM():
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
     iRange: int= 0 #Current Range by default 1 nA
-    techList: list[echemSettings]= field(default_factory=list)
+    techList: list[str]= field(default_factory=list)
 
 @dataclass
 class SECM():
