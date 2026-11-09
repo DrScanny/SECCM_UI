@@ -6,6 +6,7 @@ import functools
 import threading
 from pathlib import Path
 import random
+from matplotlib import pyplot
 
 
 from PySide6.QtCore import QObject, Signal, QThread
@@ -186,7 +187,7 @@ class SECM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            print(self.drec.timescale)
+            self.processdata(self.drec)
             self.Piezo.gcscommands.VEL('3', 1)
             self.finished.emit()
 
@@ -205,6 +206,24 @@ class SECM_PI(QObject):
         self.drec.sources = self.drec.gcs.axes[axis]
         self.drec.trigsources = datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
         self.drec.arm()
+
+    #region: process
+    def processdata(self, drec):
+        """Read out, plot and save data recorder data.
+        @type drec : pipython.datarectools.Datarecorder
+        """
+        if pyplot is None:
+            print('matplotlib is not installed')
+            return
+        pyplot.plot(drec.timescale, drec.data[0], color='red')
+        pyplot.plot(drec.timescale, drec.data[1], color='blue')
+        pyplot.xlabel('time (s)')
+        pyplot.ylabel(', '.join((drec.header['NAME0'], drec.header['NAME1'])))
+        pyplot.title('Datarecorder data over time')
+        pyplot.grid(True)
+        pyplot.show()
+        print('save GCSArray to file "gcsarray.dat"')
+        pitools.savegcsarray('gcsarray.dat', drec.header, drec.data)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECM BL
