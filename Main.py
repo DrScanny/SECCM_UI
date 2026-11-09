@@ -142,6 +142,7 @@ class Main(QMainWindow):
         self.devices.endCommand.connect(lambda end: self._progress(end))
 
         #PI positioner commands by connecting [Signal]: -mapping- to [Method]: -PI-
+        self.mapping.buttonPosition.clicked.connect(self.PIpos)
         self.mapping.buttonXYZ.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
@@ -159,19 +160,12 @@ class Main(QMainWindow):
         #endregion
 
         self.writer = FileWrite()
-        
-    #region: B-Core Methods
-    #Contains all the core methods for critical operation of the SECCM/SECM
-    # 1-UI
-    # 2-Potentiostat
-    # 3-Positioner
-    # 4-Mapping
 
     @Slot(str)
     def append_text(self, text):
         self.textLog.insertPlainText(text)
 
-    #region: B1-UI
+
     def Main_AddTechnique(self):
         selection= self.experiments.selection()
         item= QTreeWidgetItem([selection.text()])
@@ -210,12 +204,29 @@ class Main(QMainWindow):
             self.BL.worker.finished.connect(lambda: self._closeThread())
        
             self.BL.thread.start()
-            self.experiments.buttonStart.setEnabled(False)
+            self._disableAction()
+            self._progress({'start': 'Echem Measurement'})
 
         except Exception as err:
             f'[ERROR] **Main|BiologicRun**: {err}.'
     
     #endregion
+
+    #region: Position update
+    def PIpos(self):
+        try:
+            self.PI= threadInit(PI, self.devices.PIdevices)
+            self.PI.thread.started.connect(self.PI.worker.updatePosition)
+            self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
+            self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            
+            if not self.PI.thread.isRunning():
+                self.PI.thread.start()
+            else:
+                print('[ERROR] Positioners are busy, wait before performing another action.')
+        
+        except Exception as err:
+            f'[ERROR] **Main|PIpos**: {err}.'
 
     #region: B3-PImove
     def PImove(self):
@@ -227,17 +238,15 @@ class Main(QMainWindow):
             self.PI.thread.started.connect(self.PI.worker.moveXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            self.PI.worker.finished.connect(lambda: self._closeThread())
             
-            if not self.PI.thread.isRunning():
-                self.PI.thread.start()
-            else:
-                print('[ERROR] Positioners are busy, wait before performing another action.')
-
-            self._progress({'start': 'Positioner in movement... '})
+            self.PI.thread.start()
+            self._disableAction()
+            self._progress({'start': 'Positioner Moving'})
             self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
         
         except Exception as err:
-            f'[ERROR] **Main|PImoveTo**: {err}.'
+            f'[ERROR] **Main|PImove**: {err}.'
 
     def PIpiezo(self):
 
@@ -248,17 +257,15 @@ class Main(QMainWindow):
             self.PI.thread.started.connect(self.PI.worker.movePz)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            self.PI.worker.finished.connect(lambda: self._closeThread())
             
-            if not self.PI.thread.isRunning():
-                self.PI.thread.start()
-            else:
-                print('[ERROR] Positioners are busy, wait before performing another action.')
-
-            self._progress({'start': 'Positioner in movement... '})
+            self.PI.thread.start()
+            self._disableAction()
+            self._progress({'start': 'Positioner Moving'})
             self.mapping.linePzmove.setText('0')
         
         except Exception as err:
-            f'[ERROR] **Main|PImoveTo**: {err}.'
+            f'[ERROR] **Main|PIpiezo**: {err}.'
 
     #region: B4-PImoveTo
     def PImoveTo(self):
@@ -271,13 +278,11 @@ class Main(QMainWindow):
             self.PI.thread.started.connect(self.PI.worker.moveToXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            self.PI.worker.finished.connect(lambda: self._closeThread())
             
-            if not self.PI.thread.isRunning():
-                self.PI.thread.start()
-            else:
-                print('[ERROR] Positioners are busy, wait before performing another action.')
-
-            self._progress({'start': 'Positioner in movement... '})
+            self.PI.thread.start()
+            self._disableAction()
+            self._progress({'start': 'Positioner Moving'})
 
         except AttributeError:
             print('[ERROR] **Main|PImoveTo** requires a position to be selected')
@@ -293,30 +298,24 @@ class Main(QMainWindow):
             self.PI.thread.started.connect(self.PI.worker.resetXYZ)
             self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
             self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
+            self.PI.worker.finished.connect(lambda: self._closeThread())
             
-            if not self.PI.thread.isRunning():
-                self.PI.thread.start()
-            else:
-                print('[ERROR] Positioners are busy, wait before performing another action.')
-            
-            self._progress({'start': 'Resetting Positioners... '})
+            self.PI.thread.start()
+            self._disableAction()
+            self._progress({'start': 'Positioner Reset'})
         
         except Exception as err:
             f'[ERROR] **Main|PIreset**: {err}.'
 
-        
     #region: B7-Mapping
     def runMap(self):
         
-        self.events= {}
         PImethod= SECM.SECM_PI
         BLmethod= SECM.SECM_BL
         self.mapping.mapCoordinates()
-        mapSettings= self.mapping.settingsSECM
-        map= self.mapping.settingsMapping.map
-        # Loading echem technique from UI techLost
-        self.techList=[self.itemTechPair[tech].settings for tech in self.experiments.getAll()]
-
+        ExpSettings= self.mapping.settingsSECM
+        MapSettings= self.mapping.settingsMapping
+       
         print(f'map:{map} and techList:{self.techList}')
        
         match UI_Settings.Mapping: #Choosing which mapping method to use SECM or SECCM
@@ -324,33 +323,34 @@ class Main(QMainWindow):
                 print('[DEBUG] runMap SECM')
            
             case 1: #SECCM
+                print('[DEBUG] runMap SECCM')
                 PImethod= SECCM.SECCM_PI
                 BLmethod= SECCM.SECCM_BL
-                mapSettings= self.mapping.settingsSECCM
-                
+                ExpSettings= self.mapping.settingsSECCM
+                ExpSettings.techList= [self.itemTechPair[tech].settings for tech in self.experiments.getAll()] # Loading echem technique from UI techLost
+                 
+        self.events= {}
         self.events['ready']= threading.Event()
         self.events['limit']= threading.Event()
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
-        self.PI= threadInit(PImethod, self.devices.PIdevices, mapSettings, map, self.events)
-        #self.PI= threadInit(runMapPositioner, self.devices.PIdevices, runMapSettings, UI_Settings.Mapping.map, self.events)
+        self.PI= threadInit(PImethod, self.devices.PIdevices, ExpSettings, MapSettings, self.events)
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
         self.PI.worker.finished.connect(lambda: self._closeThread())
 
         #Thread assigned to the potentiostat control during approach
-        self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, mapSettings, self.techList, self.events)
+        self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, ExpSettings, MapSettings, self.events)
         self.BL.thread.started.connect(self.BL.worker.approach)
         self.BL.worker.technique.connect(lambda settings: self.newPlot(settings, dataTree=False))
         self.BL.worker.echemData.connect(lambda data: self.updatePlot(data))
         
         self.BL.thread.start()
         self.PI.thread.start()
-        self.experiments.buttonStart.setEnabled(False)
-        self.mapping.buttonMap.setEnabled(False)
+        self._disableAction()
+        self._progress({'start': 'SECM Experiment'})
      
-
     #region: B8-**Run**
     def startEchem(self):
         try:
@@ -364,7 +364,7 @@ class Main(QMainWindow):
             self.BiologicRun()            
 
         except Exception as err:
-            print(f'[ERROR] **Main|stopAll**:{err}')
+            print(f'[ERROR] **Main|startEchem**:{err}')
 
     def startMap(self):
         try:
@@ -376,7 +376,7 @@ class Main(QMainWindow):
             self.runMap() #Call method to start SECM in new thread
 
         except Exception as err:
-            print(f'[ERROR] **Main|stopAll**:{err}')
+            print(f'[ERROR] **Main|startMAP**:{err}')
         
     def stopAll(self):
         print('[DEBUG] pressed stopAll')
@@ -413,14 +413,14 @@ class Main(QMainWindow):
 
         self.data_file= open(filePath, "a", encoding="utf-8-sig")  
 
-    #region: C1-Positioner
+    #region: Update Position
     def _positionUpdate(self, position):
         self.mapping.labelXpos.setText(str(position[0]))
         self.mapping.labelYpos.setText(str(position[1]))
         self.mapping.labelZpos.setText(str(position[2]))
         self.mapping.labelPzpos.setText(str(position[3]))
 
-    #region: C2-Progress Bar
+    #region: Progress Bar
     def _progress(self, status:dict[str,str]):
         if 'start' in status:
             self.statusAction.setText(status['start'])
@@ -430,7 +430,26 @@ class Main(QMainWindow):
             self.statusAction.setText('Ready ')
             self.progress.hide()
 
-    #region: C3-Plotting
+    #region: Enable/Disable
+    def _disableAction(self):
+        self.experiments.buttonStart.setEnabled(False)
+        self.mapping.buttonMap.setEnabled(False)
+        self.mapping.buttonXYZ.setEnabled(False)
+        self.mapping.buttonPiezo.setEnabled(False)
+        self.mapping.buttonReset.setEnabled(False)
+        self.mapping.buttonMoveTo.setEnabled(False)
+
+    def _enableAction(self):
+        self.experiments.buttonStart.setEnabled(True)
+        self.mapping.buttonMap.setEnabled(True)
+        self.mapping.buttonXYZ.setEnabled(True)
+        self.mapping.buttonPiezo.setEnabled(True)
+        self.mapping.buttonReset.setEnabled(True)
+        self.mapping.buttonMoveTo.setEnabled(True)
+
+
+
+    #region: Plotting
     #When a new technique is started from the list of experiments from techList, setup the plot axes and new dataTree entry
     def newPlot(self, echemSettings, dataTree=True):
         self.writer.writeEchemSettings(echemSettings, self.data_file)
@@ -458,8 +477,7 @@ class Main(QMainWindow):
 
     # Function that execute commands when a thread is closed
     def _closeThread(self):
-        self.experiments.buttonStart.setEnabled(True) #Enable buttonStart to start echem measurements
-        self.mapping.buttonMap.setEnabled(True) #Enable buttonMap to start SECM or SECCM
+        self._enableAction()
 
         try:
             self.data_file #checking if file is open

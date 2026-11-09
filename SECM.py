@@ -10,7 +10,7 @@ import random
 
 from PySide6.QtCore import QObject, Signal, QThread
 
-from pipython import GCSDevice, GCSError
+from pipython import GCSDevice, GCSError, datarectools, pitools
 
 from BiologicAPI.kbio.kbio_api import KBIO_api
 from BiologicAPI.kbio.kbio_tech import get_experiment_data
@@ -20,7 +20,7 @@ from kbio.utils import exception_brief
 from BiologicAPI.CA_biologic import ca_parm
 from BiologicAPI.OCP_biologic import ocp_parm
 from BiologicAPI.CV_biologic import cv_parm
-from BiologicAPI.CP_biologic import cp_parm
+from BiologicAPI.CP_biologic import cp_parm 
 
 import UI_Settings
 
@@ -63,7 +63,7 @@ class SECM_PI(QObject):
     connection= Signal(bool)
     finished= Signal()              
 
-    def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], SECMsettings:UI_Settings.SECM, mapCoordinates, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], SECMsettings:UI_Settings.SECM, mapSettings:UI_Settings.Mapping, event:dict[str,threading.Event]):
         super().__init__()
 
         self.XYstage:GCSDevice= PIdevice['XY']
@@ -74,7 +74,7 @@ class SECM_PI(QObject):
         self.event_ready:threading.Event= event['ready']
         self.event_stop:threading.Event= event['stop']
         self.threadInstance= threadInstance
-        self.mapCoordinates= mapCoordinates
+        self.mapSettings= mapSettings
         
     #region: Approach
 
@@ -90,9 +90,10 @@ class SECM_PI(QObject):
                 return print('Interrupted by user')
         self.finished.emit()
 
+    #region: constDist_PI
     def const_dist(self):
         
-        for coordinates in self.mapCoordinates:
+        for coordinates in self.mapSettings.map:
             self.XYstage.gcscommands.MOV(['1','2'], coordinates)
             while any(list(self.XYstage.gcscommands.IsMoving().values())):
                 time.sleep(0.25)
@@ -101,11 +102,14 @@ class SECM_PI(QObject):
                                     round(self.Zstage.qPOS()['1']-25,3), 
                                     round(self.Piezo.qPOS()['3'],3)])
 
+            time.sleep(self.mapSettings.wait)
             self.event_ready.set()
-            time.sleep(2)
+            self.event_stop.wait()
+            self.event_ready.clear()
+            self.event_stop.clear()
+            print('[DEBUG] Measurement done, moving to new coordinate')
 
-
-    def approach(self): #Method for approach curve
+    def approach(self, record=False): #Method for approach curve
 
         try:
             positioner= self.Zstage #Default positioner use for approach curve
@@ -117,6 +121,8 @@ class SECM_PI(QObject):
                     self.Zstage.gcscommands.VEL('1', self.settings.speed/1000) #Assign user chosen speed to Zstage
  
                     self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
+                    if record: #Option to record data from positioner
+                        self.recorddata(positioner, 36000, 0.1)
                     self.Zstage.gcscommands.MOV('1', 0) #Move Z-stage toward sample
                 
                 case 1: #Coarse positioning with Z-stage
@@ -135,6 +141,8 @@ class SECM_PI(QObject):
 
                     self.Piezo.gcscommands.VEL('3', self.settings.speed)
                     self.event_ready.wait() 
+                    if record: #Option to record data from positioner
+                        self.recorddata(positioner, 36000, 0.01)
                     self.Piezo.gcscommands.MOV('3', 0)
 
                 case _:
@@ -143,6 +151,8 @@ class SECM_PI(QObject):
 
             # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
             self.wait(positioner)
+            if record:
+                pitools.savegcsarray('gcsarray.dat', self.drec.header, self.drec.data)
                  
         except GCSError as err:
             print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
@@ -193,6 +203,20 @@ class SECM_PI(QObject):
                                 round(self.Zstage.qPOS()['1']-25,3), 
                                 round(self.Piezo.qPOS()['3'],3)])
 
+    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float):
+        """Set up data recorder to record 2 tables for first axis after next motion command.
+        @type drec : pipython.datarectools.Datarecorder
+        """
+        self.drec= datarectools.Datarecorder(PIdevice)
+        self.drec.numvalues = n_points
+        self.drec.samplefreq = rate
+        print('data recorder rate: {:.2f} Hz'.format(self.drec.samplefreq))
+        self.drec.options = (datarectools.RecordOptions.ACTUAL_POSITION_2,
+                        datarectools.RecordOptions.COMMANDED_POSITION_1)
+        self.drec.sources = self.drec.gcs.axes[3]
+        self.drec.trigsources = datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
+        self.drec.arm()
+
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECM BL
 class SECM_BL(QObject): 
@@ -202,7 +226,7 @@ class SECM_BL(QObject):
     technique= Signal(object)
     done= Signal()
 
-    def __init__(self, threadInstance:QThread, potentiostat, SECMsettings: UI_Settings.SECM, techniqueList, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, potentiostat, SECMsettings: UI_Settings.SECM, mapSettings:UI_Settings.Mapping, event:dict[str,threading.Event]):
         super().__init__()
 
         self.channel:int= potentiostat['channel']
@@ -213,6 +237,7 @@ class SECM_BL(QObject):
         self.threadInstance= threadInstance
       
         self.settings:UI_Settings.SECM= SECMsettings
+        self.mapSettings:UI_Settings.Mapping= mapSettings
         self.event_ready:threading.Event= event['ready']
         self.event_stop:threading.Event= event['stop']
         self.techniqueList= None
@@ -233,7 +258,7 @@ class SECM_BL(QObject):
                 
                 case 1:
                     time=3600
-                    timestep= 0.005
+                    timestep= 0.01
                     nBulk= 3000
             
             #For SECM approach curve for now only chronoamp approach
@@ -301,10 +326,13 @@ class SECM_BL(QObject):
             # This block always runs, even if an exception or return occurred
             self.finished.emit()
 
+    #region: constDist_BL
     def const_dist(self):
 
         time=43200
         timestep= 1
+        map_data= np.zeros(self.mapSettings.Ndata)
+        idx=0
         
         approachSettings= UI_Settings.echemSettings('CA', duration=time, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
         self.technique.emit(approachSettings)
@@ -319,7 +347,14 @@ class SECM_BL(QObject):
             for output in get_experiment_data(self.api, data, tech_name, self.board_type):
                 #Measurement is stopped if stop condition is fulfilled
                 if self.event_ready.is_set():
-                    self.echemData.emit(output)
+                    if idx==self.mapSettings.Ndata:
+                        self.echemData.emit(map_data)
+                        idx=0
+                        self.event_stop.is_set()
+                        
+                    else:
+                        map_data[idx]= output['Iwe']
+                        idx+=1
         
             # Measurement stop signals: 1- Duration exceeded, 2- Mapping completed, 3- User interruption
             if status == "STOP":

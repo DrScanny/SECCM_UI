@@ -115,7 +115,7 @@ class PIconnect(QObject):
                 elif self.PIname==self.deviceNames['Pz']: #For Piezo Connect -> Activate Servo   
                     
                     self.PIdevice.gcscommands.SVO({1:1, 2:1, 3:1})
-                    self.PIdevice.gcscommands.VEL({1:1, 2:1, 3:1})
+                    self.PIdevice.gcscommands.VEL({1:5, 2:5, 3:5})
 
                 #Wait until all stages are ready
                 while not all(list(self.PIdevice.qONT().values())): 
@@ -248,17 +248,23 @@ class BLconnect(QObject):
 
         except Exception as err:
                 # Handle the exception gracefully
-                print(f"[ERROR] Connecting to VMP-300: {exception_brief(err, self.verbosity >= 1)}")
+                print(f"[ERROR] *connectBL*: {exception_brief(err, self.verbosity >= 1)}")
                 # Optional: Return a default fallback value or re-raise with 'raise'
                 return False
         
         finally:
             self.finished.emit()
           
-          
     def disconnectBL(self):
-        self.api.Disconnect(self.id_)
-        print('[VMP-300] Disconnected')
+        try:
+            self.api.Disconnect(self.id_)
+        except Exception as err:
+                    # Handle the exception gracefully
+                    print(f"[ERROR] *disconnectBL*: {exception_brief(err, self.verbosity >= 1)}")
+                    # Optional: Return a default fallback value or re-raise with 'raise'
+                    return False
+        finally:
+            self.finished.emit()
   
 class DeviceManager(QWidget):
 
@@ -407,11 +413,11 @@ class DeviceManager(QWidget):
     def connectAll(self):
 
         self.connectPotentiostat()
-        time.sleep(3)
+        time.sleep(0.5)
         self.connectXY() 
-        time.sleep(3)
+        time.sleep(0.5)
         self.connectZ() 
-        time.sleep(3)
+        time.sleep(0.5)
         self.connectPz() 
 
 

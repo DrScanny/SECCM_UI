@@ -1,6 +1,5 @@
-from pipython import GCSDevice, GCSError, gcserror
+from pipython import GCSDevice, GCSError, datarectools
 from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
-from PySide6.QtWidgets import QProgressDialog, QMessageBox
 import time
 import functools
 
