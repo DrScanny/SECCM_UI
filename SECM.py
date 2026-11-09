@@ -143,7 +143,7 @@ class SECM_PI(QObject):
 
                     self.event_ready.wait() 
                     if record: #Option to record data from positioner
-                        self.recorddata(positioner, 36000, 0.01)
+                        self.recorddata(positioner, 36000, 0.005)
                     self.Piezo.gcscommands.MOV('3', 0)
 
                 case _:
@@ -168,7 +168,8 @@ class SECM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.clean()
+            self.Piezo.gcscommands.VEL('3', 1)
+            self.finished.emit()
 
     def wait(self, positioner):
 
@@ -236,20 +237,20 @@ class SECM_BL(QObject):
     def approach(self):
     
         try:
-            #By default coarse approach
+            #By default coarse approach with Z-stage settings
             expTime=10800
             timestep= 0.1
-            nBulk= 50
+            nBulk= 30
 
             #Storage for measuring bulk current
             match self.settings.positioner:
-                case 0:
+                case 0: #Case for coarse approach with Z-stage
                     pass
                 
-                case 1:
-                    time=3600
-                    timestep= 0.01
-                    nBulk= 3000
+                case 1: #Case for fine approach with Piezo
+                    expTime=3600
+                    timestep= 0.005
+                    nBulk= 600
             
             #For SECM approach curve for now only chronoamp approach
             approachSettings= UI_Settings.echemSettings('CA', duration=expTime, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
@@ -279,7 +280,6 @@ class SECM_BL(QObject):
                 print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')   
 
                 #Wait until positioners are reset to start potentiostat
-            
                 print('Starting measurement')
                 self.event_ready.set() 
                 
@@ -317,8 +317,7 @@ class SECM_BL(QObject):
             # Handle the exception gracefully
             print(f"[ERROR] **SECM|SECM_BL|approach**: {exception_brief(err, self.verbosity >= 1)}")
             # Optional: Return a default fallback value or re-raise with 'raise'
-            self.finished.emit()
-            return None 
+            return 
         
         finally:
             # This block always runs, even if an exception or return occurred
