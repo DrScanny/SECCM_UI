@@ -52,7 +52,6 @@ class ExpLoad(QWidget):
 
         self.layoutChButton= QHBoxLayout(); self.layoutLoadout.addLayout(self.layoutChButton)
         self.buttonStart= QPushButton("Start"); self.layoutChButton.addWidget(self.buttonStart)
-        self.buttonStop= QPushButton("Stop"); self.layoutChButton.addWidget(self.buttonStop)
      
         #endregion -----------------------------------------------------------------------------------------------------------------------------------------------------
 

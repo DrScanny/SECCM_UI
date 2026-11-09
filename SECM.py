@@ -8,9 +8,9 @@ from pathlib import Path
 import random
 
 
-from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPool, QRunnable, Slot
+from PySide6.QtCore import QObject, Signal, QThread
 
-from pipython import GCSDevice, GCSError
+from pipython import GCSDevice, GCSError, datarectools, pitools
 
 from BiologicAPI.kbio.kbio_api import KBIO_api
 from BiologicAPI.kbio.kbio_tech import get_experiment_data
@@ -19,6 +19,8 @@ from kbio.utils import exception_brief
 
 from BiologicAPI.CA_biologic import ca_parm
 from BiologicAPI.OCP_biologic import ocp_parm
+from BiologicAPI.CV_biologic import cv_parm
+from BiologicAPI.CP_biologic import cp_parm 
 
 import UI_Settings
 
@@ -61,7 +63,7 @@ class SECM_PI(QObject):
     connection= Signal(bool)
     finished= Signal()              
 
-    def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], SECMsettings:UI_Settings.SECM, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, PIdevice:dict[str,GCSDevice], SECMsettings:UI_Settings.SECM, mapSettings:UI_Settings.Mapping, event:dict[str,threading.Event]):
         super().__init__()
 
         self.XYstage:GCSDevice= PIdevice['XY']
@@ -69,12 +71,11 @@ class SECM_PI(QObject):
         self.Piezo:GCSDevice= PIdevice['Pz']
         
         self.settings:UI_Settings.SECM= SECMsettings
-        self.event_piezoReady:threading.Event= event['ready']
-        self.event_piezoLimit:threading.Event= event['limit']
-        self.event_stopTip:threading.Event= event['stop']
+        self.event_ready:threading.Event= event['ready']
+        self.event_stop:threading.Event= event['stop']
         self.threadInstance= threadInstance
+        self.mapSettings= mapSettings
         
-    #region: Approach
 
     def debug(self):
         print('Positioner...')
@@ -88,78 +89,77 @@ class SECM_PI(QObject):
                 return print('Interrupted by user')
         self.finished.emit()
 
-    def reset(self):
-        print("Resetting positioners, will take 10 seconds")
-        self.Piezo.gcscommands.VEL('3', 6) 
-        self.Piezo.gcscommands.MOV('3', 60) 
-        time.sleep(1)
-        self.Zstage.gcscommands.VEL(1, 0.006)
-        self.Zstage.gcscommands.MVR('1', -0.06) 
+    #region: constDist
+    def const_dist(self):
+        
+        for coordinates in self.mapSettings.map:
+            self.XYstage.gcscommands.MOV(['1','2'], coordinates)
+            while any(list(self.XYstage.gcscommands.IsMoving().values())):
+                time.sleep(0.25)
+                self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
+                                    round(self.XYstage.qPOS()['2'],3), 
+                                    round(self.Zstage.qPOS()['1']-25,3), 
+                                    round(self.Piezo.qPOS()['3'],3)])
 
-        while any(list(self.Zstage.gcscommands.IsMoving().values())):
-            if self.threadInstance.isInterruptionRequested():
-                self.Zstage.gcscommands.HLT(noraise=True)
-                print('[SECCM] Approach Interrupted by User!')
-                return
-            
-        #Signaling piezo ready to potentiostat
-        print(f"[SECM] Positioners Reset Z:{round(self.Zstage.qPOS()['1']-25,3)}, Pz:{round(self.Piezo.qPOS()['1'],3)}")
-        self.event_piezoReady.set()
-        self.event_piezoLimit.clear()
+            time.sleep(self.mapSettings.wait)
+            self.event_ready.set()
+            self.event_stop.wait()
+            self.event_ready.clear()
+            self.event_stop.clear()
+            print('[DEBUG] Measurement done, moving to new coordinate')
 
-    def map(self):
-        pass
-
-    def approach(self):
+    #region: approach
+    def approach(self, record=False): #Method for approach curve
 
         try:
+            positioner= self.Zstage #Default positioner use for approach curve
+            match self.settings.positioner: #Match the chosen positioner to the appropriate method for approaching
 
-            #Initializing positioners speed and position for tip down procedure
-            self.reset()
-            
-            #Waiting 3 sec to let potentiostat measure bulk current for SECM approach
-            time.sleep(3)
-
-            #Primary loop, the positioners will continually move, until the stopTip event is set
-            #   1- Piezo move for tip down 
-            #   2- Reset the Piezo and move the Z-Stage
-
-            while True:
-                #Starting piezo movement from 60 to 0 um for approach, 2 seconds wait to let potentiostat start beforehand
-                print(f"[SECM] Piezo Approaching")
-                self.Piezo.VEL('3', self.settings.speed)
-                self.Piezo.MOV('3', 0) 
+                case 0: #Coarse positioning with Z-stage
+                    print("Preparing Z-stage for SECM approach (~ 5s), please wait...")
+                    self.Piezo.gcscommands.MOV('3', 0) #Making sure piezo is neutral
+                    self.Zstage.gcscommands.VEL('1', self.settings.speed/1000) #Assign user chosen speed to Zstage
+                    self.wait(self.Zstage)
+ 
+                    self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
+                    if record: #Option to record data from positioner
+                        self.recorddata(positioner, 36000, 0.1)
+                    self.Zstage.gcscommands.MOV('1', 0) #Move Z-stage toward sample
                 
-                while any(list(self.Piezo.gcscommands.IsMoving().values())):
+                case 1: #Coarse positioning with Z-stage
+                    print("Preparing Piezo for SECM approach (~ 20s), please wait...")
+                    positioner=self.Piezo
 
-                    self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
-                                       round(self.XYstage.qPOS()['2'],3), 
-                                       round(self.Zstage.qPOS()['1']-25,3), 
-                                       round(self.Piezo.qPOS()['3'],3)])
+                    #Move Piezo up 100 um
+                    self.Piezo.gcscommands.VEL('3', 10)
+                    self.Piezo.gcscommands.MOV('3', 100)
+                    time.sleep(1)
 
-                    #While the Piezo is moving, stop if **Stop Criteria** is met
-                    if self.event_stopTip.is_set():
-                        print('[DEBUG] Landing succesful!?')
-                        return
-                    
-                    #While the Piezo is moving, stop if user pressed stop
-                    if self.threadInstance.isInterruptionRequested():
-                        self.Piezo.gcscommands.HLT(noraise=True)
-                        print('[SECCM] Approach Interrupted by User!')
-                        return 
-        
-                    time.sleep(0.25)
+                    #Move Z-stage down 100 um to offset the Piezo going up
+                    self.Zstage.gcscommands.VEL('1', 10e-3)
+                    self.Zstage.gcscommands.MVR('1', -0.1)
+                    time.sleep(10)
 
-                #If the Piezo reaches its limit without being stopped, reset the piezo and move the Z-Stage by the corresponding amount
-                print("[SECCM] Piezo Limit Reached")
-                self.event_piezoLimit.set()
-                self.reset()
+                    self.Piezo.gcscommands.VEL('3', self.settings.speed)
+
+                    self.event_ready.wait() 
+                    if record: #Option to record data from positioner
+                        self.recorddata(positioner, 36000, 0.005)
+                    self.Piezo.gcscommands.MOV('3', 0)
+
+                case _:
+                    print('[ERROR] Positioner not recognized')
+                    return
+
+            self.wait(positioner)
+            if record:
+                pitools.savegcsarray('gcsarray.dat', self.drec.header, self.drec.data)
                  
         except GCSError as err:
             print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
                 
         except IOError:
-            print('[ERROR] **SECCM|SECCM_PI|approachPI**: Checked if Controller is Turned ON.')
+            print('[ERROR] **SECCM|SECCM_PI|approachPI**: Controller unresponsive, check if its Turned ON.')
 
         except Exception as err:
             # Handle the exception gracefully
@@ -169,16 +169,50 @@ class SECM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.Zstage.gcscommands.VEL(1,1)
-            self.clean()
+            self.Piezo.gcscommands.VEL('3', 1)
+            self.finished.emit()
 
-    #region: Utility 
-    def clean(self):
-        self.finished.emit()
+    #region: wait
+    def wait(self, positioner):
 
+        # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
+        while any(list(positioner.gcscommands.IsMoving().values())):
+        
+            #While the Piezo is moving, stop if **Stop Criteria** is met
+            if self.event_stop.is_set():
+                positioner.gcscommands.HLT(noraise=True)
+                print('[DEBUG] Landing succesful!?')
+                return
+                            
+            #While the Piezo is moving, stop if user pressed stop
+            if self.threadInstance.isInterruptionRequested():
+                positioner.gcscommands.HLT(noraise=True)
+                print('[MSG] Approach Interrupted by User!')
+                return 
+        
+            #While stage is moving it updates the position
+            self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
+                                round(self.XYstage.qPOS()['2'],3), 
+                                round(self.Zstage.qPOS()['1']-25,3), 
+                                round(self.Piezo.qPOS()['3'],3)])
+            
+    #region: record
+    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float):
+        """Set up data recorder to record 2 tables for first axis after next motion command.
+        @type drec : pipython.datarectools.Datarecorder
+        """
+        self.drec= datarectools.Datarecorder(PIdevice)
+        self.drec.numvalues = n_points
+        self.drec.samplefreq = rate
+        print('data recorder rate: {:.2f} Hz'.format(self.drec.samplefreq))
+        self.drec.options = (datarectools.RecordOptions.ACTUAL_POSITION_2,
+                        datarectools.RecordOptions.COMMANDED_POSITION_1)
+        self.drec.sources = self.drec.gcs.axes[3]
+        self.drec.trigsources = datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
+        self.drec.arm()
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#region: SECCM BL
+#region: SECM BL
 class SECM_BL(QObject): 
 
     finished= Signal() # Signal that process is over
@@ -186,7 +220,7 @@ class SECM_BL(QObject):
     technique= Signal(object)
     done= Signal()
 
-    def __init__(self, threadInstance:QThread, potentiostat, SECMsettings: UI_Settings.SECM, event:dict[str,threading.Event]):
+    def __init__(self, threadInstance:QThread, potentiostat, SECMsettings: UI_Settings.SECM, mapSettings:UI_Settings.Mapping, event:dict[str,threading.Event]):
         super().__init__()
 
         self.channel:int= potentiostat['channel']
@@ -197,75 +231,141 @@ class SECM_BL(QObject):
         self.threadInstance= threadInstance
       
         self.settings:UI_Settings.SECM= SECMsettings
-        self.event_piezoReady:threading.Event= event['ready']
-        self.event_piezoLimit:threading.Event= event['limit']
-        self.event_stopTip:threading.Event= event['stop']
-
-    def map(self):
-        pass
+        self.mapSettings:UI_Settings.Mapping= mapSettings
+        self.event_ready:threading.Event= event['ready']
+        self.event_stop:threading.Event= event['stop']
+        self.techniqueList= None
 
     #region: ApproachBL
     def approach(self):
     
         try:
-            print(self.settings)
-            iData= []
-            #Wait until positioners are reset to start potentiostat
-            self.event_piezoReady.wait()
+            #By default coarse approach with Z-stage settings
+            expTime=10800
+            timestep= 0.1
+            nBulk= 30
+
+            #Storage for measuring bulk current
+            match self.settings.positioner:
+                case 0: #Case for coarse approach with Z-stage
+                    pass
+                
+                case 1: #Case for fine approach with Piezo
+                    expTime=3600
+                    timestep= 0.005
+                    nBulk= 600
             
             #For SECM approach curve for now only chronoamp approach
-            approachSettings= UI_Settings.echemSettings('CA', duration=10800, potential= self.settings.Eapp, dt=0.1, iRange= self.settings.iRange)
+            approachSettings= UI_Settings.echemSettings('CA', duration=expTime, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
             self.technique.emit(approachSettings)
             self.loadTechnique(approachSettings)
             self.api.StartChannel(self.id_, self.channel)
-            
-            while len(iData)<30: 
 
-                data= self.api.GetData(self.id_, self.channel)
-                status, tech_name= get_info_data(self.api, data) 
-   
-                for output in get_experiment_data(self.api, data, tech_name, self.board_type):
-                    iData.append(output['Iwe'])
-
-                if self.threadInstance.isInterruptionRequested():
-                    return
-            
-            iBulk=sum(iData[10:])/20
-            iMin, iMax= self.tipStop(iBulk)
-            print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')    
-
+            #Measuring bulk current first
+            i=0
+            iBulkData= np.zeros(nBulk)
+            print('Measuring bulk current')
             while True: 
+                while i<nBulk: 
 
-                data= self.api.GetData(self.id_, self.channel)
-                status, tech_name= get_info_data(self.api, data) 
+                    data= self.api.GetData(self.id_, self.channel)
+                    status, tech_name= get_info_data(self.api, data) 
 
-                for output in get_experiment_data(self.api, data, tech_name, self.board_type):
-                    #Measurement is stopped if stop condition is fulfilled
-                    self.echemData.emit(output)
-              
-                    if output['Iwe']<iMin or output['Iwe']>iMax: # Function that determine if the tip should be stopped based on the stop criteria
-                        self.event_stopTip.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
-                        print('[DEBUG] Tip Down Interrupted by Stop Criteria')
+                    for output in get_experiment_data(self.api, data, tech_name, self.board_type):
+                        iBulkData[i]=output['Iwe']
+                        i+=1
+                    
+                    if self.threadInstance.isInterruptionRequested():
+                        return
+                
+                iBulk=np.average(iBulkData[int(nBulk*0.8):])
+                iMin, iMax= self.tipStop(iBulk)
+                print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')   
+
+                #Wait until positioners are reset to start potentiostat
+                print('Starting measurement')
+                self.event_ready.set() 
+                
+                #Once bulk current is established, start true measurement
+                while True: 
+
+                    data= self.api.GetData(self.id_, self.channel)
+                    status, tech_name= get_info_data(self.api, data) 
+                        
+                    for output in get_experiment_data(self.api, data, tech_name, self.board_type):
+                        #Measurement is stopped if stop condition is fulfilled
+                        
+                        if np.abs(output['Iwe'])<iMin or np.abs(output['Iwe'])>iMax: # Function that determine if the tip should be stopped based on the stop criteria
+                            self.event_stop.set() # Set the 'stop' event flag. Signal the end of approach curve: Stop all activity!
+                            
+                            print(output['Iwe'], np.abs(output['Iwe'])<iMin, np.abs(output['Iwe'])>iMax)
+                            print('[MSG] Tip Down Interrupted by Stop Criteria')
+                            return
+                    
+                        self.echemData.emit(output)
+                
+                    # Measurement is stopped if reached time limit or user stop
+                    if status == "STOP":
+                        print(f'Approach duration exceeded the time limit')
                         return
 
-                # Measurement is stopped if reached time limit or user stop
-                if status == "STOP":
-                    print(f'Approach duration exceeded the time limit of 10800')
-                    return
+                    if self.event_stop.is_set():
+                        print('[MSG] Reached positioner limit, measurement stopped!')
+                        return
 
-                if self.threadInstance.isInterruptionRequested():
-                    return
-        
+                    if self.threadInstance.isInterruptionRequested():
+                        return
+                
         except Exception as err:
             # Handle the exception gracefully
             print(f"[ERROR] **SECM|SECM_BL|approach**: {exception_brief(err, self.verbosity >= 1)}")
             # Optional: Return a default fallback value or re-raise with 'raise'
-            self.finished.emit()
-            return None 
+            return 
         
         finally:
             # This block always runs, even if an exception or return occurred
             self.finished.emit()
+
+    #region: constDist_BL
+    def const_dist(self):
+
+        time=43200
+        timestep= 1
+        map_data= np.zeros(self.mapSettings.Ndata)
+        idx=0
+        
+        approachSettings= UI_Settings.echemSettings('CA', duration=time, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
+        self.technique.emit(approachSettings)
+        self.loadTechnique(approachSettings)
+        self.api.StartChannel(self.id_, self.channel)
+
+        while True: 
+    
+            data= self.api.GetData(self.id_, self.channel)
+            status, tech_name= get_info_data(self.api, data) 
+                
+            for output in get_experiment_data(self.api, data, tech_name, self.board_type):
+                #Measurement is stopped if stop condition is fulfilled
+                if self.event_ready.is_set():
+                    if idx==self.mapSettings.Ndata:
+                        self.echemData.emit(map_data)
+                        idx=0
+                        self.event_stop.is_set()
+                        
+                    else:
+                        map_data[idx]= output['Iwe']
+                        idx+=1
+        
+            # Measurement stop signals: 1- Duration exceeded, 2- Mapping completed, 3- User interruption
+            if status == "STOP":
+                print(f'Approach duration exceeded the time limit')
+                return
+
+            if self.event_stop.is_set():
+                return
+
+            if self.threadInstance.isInterruptionRequested():
+                return
 
     def loadTechnique(self, tech):
 
@@ -290,12 +390,12 @@ class SECM_BL(QObject):
             
             match self.settings.stop:
                 case 0: #tip stop based relative current change
-                    imax= ibulk*self.settings.limPos/100
-                    imin= ibulk*self.settings.limNeg/100
+                    imax= np.abs(ibulk*self.settings.limPos/100)
+                    imin= np.abs(ibulk*self.settings.limNeg/100)
                   
                 case 1: #tip stop based absolute current change
-                    imax= ibulk+self.settings.limPos
-                    imin= ibulk-self.settings.limNeg
+                    imax= np.abs(ibulk+self.settings.limPos)
+                    imin= np.abs(ibulk-self.settings.limNeg)
                 
                 case 2: #tip stop based on current limit
                     imax= self.settings.limPos

@@ -1,6 +1,5 @@
-from pipython import GCSDevice, GCSError, gcserror
+from pipython import GCSDevice, GCSError, datarectools
 from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot
-from PySide6.QtWidgets import QProgressDialog, QMessageBox
 import time
 import functools
 
@@ -31,8 +30,8 @@ def _exception():
                 
                 finally:
                     # This block always runs, even if an exception or return occurred
-                    method= getattr(self, "_clean")
-                    method()
+                    method= getattr(self, "updatePosition")
+                    method(position=True)
             
             return wrapper
         return decorator
@@ -76,14 +75,26 @@ class PI(QObject):
         def moveXYZ(self):
         
             #Moving Stages
-            self.XYstage.gcscommands.MVR({'1':self.Xmove, '2':self.Ymove})
-            self.Zstage.gcscommands.MVR('1', self.Zmove)
-            self.Piezo.gcscommands.MVR('3', self.Pzmove)
+            if self.Xmove !=0 or self.Ymove !=0:
+                print('[move XYZ Debug] moving XY stage')
+                self.XYstage.gcscommands.MVR({'1':self.Xmove, '2':self.Ymove})
+            if self.Zmove !=0:
+                print('[move XYZ Debug] moving Z stage')
+                self.Zstage.gcscommands.MVR('1', self.Zmove)
 
             #Wait until Stages have stopped moving
-                    
-            self._wait(interrupt=True)
-            self._updatePosition(position= True)
+            self.wait(interrupt=True)
+
+        @_exception()
+        def movePz(self):
+            
+            #Moving Piezo
+            if self.Pzmove !=0:
+                print('[move XYZ Debug] moving piezo')
+                self.Piezo.gcscommands.MOV('3', self.Pzmove)
+         
+            #Wait until Stages have stopped moving
+            self.wait(interrupt=True)
 
         @_exception()
         def resetXYZ(self):
@@ -94,9 +105,11 @@ class PI(QObject):
             if self.Zstage.IsConnected():
                 self.Zstage.gcscommands.FPL()
 
-            self._wait()
+            if self.Piezo.IsConnected():
+                self.Piezo.gcscommands.MOV('3', 0)
+
+            self.wait()
             print('[POSITIONERS] Reset!')
-            self._updatePosition()
        
         @_exception()
         def moveToXYZ(self):
@@ -107,11 +120,19 @@ class PI(QObject):
             if self.Zstage.IsConnected():
                 self.Zstage.gcscommands.MOV('1', self.Zmove)
 
-            self._wait(interrupt=True)
-            self._updatePosition(position= True)
+            self.wait(interrupt=True)
 
-        def _updatePosition(self, position:bool =False):
-            self.currentPosition= [-1*round(self.XYstage.qPOS()['1'],3), round(self.XYstage.qPOS()['2'],3), round(self.Zstage.qPOS()['1']-25,3), round(self.Piezo.qPOS()['3'],3)]
+        def updatePosition(self, position:bool =False):
+
+            if self.XYstage.IsConnected():
+                self.currentPosition[0]= -1*round(self.XYstage.qPOS()['1'],3)
+            if self.XYstage.IsConnected():
+                self.currentPosition[1]= round(self.XYstage.qPOS()['2'],3)      
+            if self.Zstage.IsConnected():
+                self.currentPosition[2]= round(self.Zstage.qPOS()['1']-25,3)
+            if self.Piezo.IsConnected():
+                self.currentPosition[3]= round(self.Piezo.qPOS()['3'],3)
+            
             self.position.emit(self.currentPosition)  
             
             if position:
@@ -119,33 +140,45 @@ class PI(QObject):
 
             self.finished.emit()
 
-        def _wait(self, interrupt:bool= False):
+        def wait(self, interrupt:bool= False):
             # IsMoving returns an ordered dict: True if moving for each axis of the positioner. 
             # The dict values are turned into a list and then if any values are true the while loop continues until all axis have stopped
 
             if interrupt:
 
-                while any(list(self.XYstage.gcscommands.IsMoving().values())):
-                    if self.threadInstance.isInterruptionRequested():
-                        self.XYstage.gcscommands.HLT(noraise=True)
-                        print('[DEBUG] *moveXYZ* Interrupted by User')
-                        return
+                if self.XYstage.IsConnected():
+                    while any(list(self.XYstage.gcscommands.IsMoving().values())):
+                        if self.threadInstance.isInterruptionRequested():
+                            self.XYstage.gcscommands.HLT(noraise=True)
+                            print('[DEBUG] *moveXYZ* Interrupted by User')
+                            return
+                        
+                if self.Zstage.IsConnected():
+                    while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                        if self.threadInstance.isInterruptionRequested():
+                            self.Zstage.gcscommands.HLT(noraise=True)
+                            print('[DEBUG] *moveXYZ* Interrupted by User')
+                            return
 
-                while any(list(self.Zstage.gcscommands.IsMoving().values())):
-                    if self.threadInstance.isInterruptionRequested():
-                        self.Zstage.gcscommands.HLT(noraise=True)
-                        print('[DEBUG] *moveXYZ* Interrupted by User')
-                        return
+                if self.Piezo.IsConnected():
+                    while any(list(self.Piezo.gcscommands.IsMoving().values())):
+                        if self.threadInstance.isInterruptionRequested():
+                            self.Piezo.gcscommands.HLT(noraise=True)
+                            print('[DEBUG] *movePz* Interrupted by User')
+                            return
             else:
             
-                while any(list(self.XYstage.gcscommands.IsMoving().values())):
-                    time.sleep(0.5)
+                if self.XYstage.IsConnected():
+                    while any(list(self.XYstage.gcscommands.IsMoving().values())):
+                        time.sleep(0.5)
 
-                while any(list(self.Zstage.gcscommands.IsMoving().values())):
-                    time.sleep(0.5)
-            
-        def _clean(self):
-            self.finished.emit()
+                if self.Zstage.IsConnected():
+                    while any(list(self.Zstage.gcscommands.IsMoving().values())):
+                        time.sleep(0.5)
+
+                if self.Piezo.IsConnected():
+                    while any(list(self.Piezo.gcscommands.IsMoving().values())):
+                        time.sleep(0.5)
 
 if __name__ == "__main__":
 

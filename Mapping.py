@@ -39,9 +39,6 @@ def _floatFromStr(text:str)-> float|None:
      coordinates= re.findall(pattern, text)
      return coordinates[0]
 
-sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-sizePolicy.setHorizontalStretch(0)
-sizePolicy.setVerticalStretch(0)
 
 class Mapping(QWidget):
       
@@ -49,7 +46,7 @@ class Mapping(QWidget):
         super().__init__()
         self.layoutWidget= QVBoxLayout(); self.setLayout(self.layoutWidget)
         self.frame= QFrame(); self.frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
-        self.frame.setSizePolicy(sizePolicy); self.frame.setFixedWidth(300)
+        self.frame.setFixedWidth(300)
         self.layoutFrame= QVBoxLayout(self.frame); self.layoutWidget.addWidget(self.frame)
         
         self.settingsMove= UI_Settings.Move()
@@ -59,7 +56,7 @@ class Mapping(QWidget):
 
         #Method for UI elements
         self.widgetPositioner()
-        self.widgetMapping()
+        self.widgetExperiment()
         self.widgetStack()
 
         #self.setStyleSheet("QLineEdit {border: 1px solid gray; border-radius: 4px; background-color: white; padding: 2px;text-decoration: none;}")
@@ -75,6 +72,7 @@ class Mapping(QWidget):
         self.sepPositionSection1.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection1.setFrameShadow(QFrame.Shadow.Sunken)
 
+        self.buttonPosition= QPushButton('Pos'); self.layoutPosition.addWidget(self.buttonPosition, 1,0)
         self.labelX= QLabel('X (mm)'); self.layoutPosition.addWidget(self.labelX, 1,1); self.labelX.setStyleSheet("font-weight: bold;")
         self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelY= QLabel('Y (mm)');  self.layoutPosition.addWidget(self.labelY, 1,2); self.labelY.setStyleSheet("font-weight: bold;")
@@ -126,111 +124,122 @@ class Mapping(QWidget):
         self.labelXmax= QLabel('\u00B165');  self.layoutPosition.addWidget(self.labelXmax, 6,1); self.labelXmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelYmax= QLabel('\u00B150'); self.layoutPosition.addWidget(self.labelYmax, 6,2); self.labelYmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelZmax= QLabel('-25');  self.layoutPosition.addWidget(self.labelZmax, 6,3); self.labelZmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        self.labelPzmax= QLabel('100');  self.layoutPosition.addWidget(self.labelPzmax, 6,4); self.labelPzmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,7,0,1,5) 
+        self.buttonXYZ= QPushButton('Move XYZ'); self.layoutPosition.addWidget(self.buttonXYZ,7,0,1,3)
+        self.buttonXYZ.setToolTip('Move the XYZ stage relative to its current position')
+        self.buttonPiezo= QPushButton('Move Pz'); self.layoutPosition.addWidget(self.buttonPiezo,7,3,1,2)
+        self.buttonPiezo.setToolTip('Move the piezo to absolute position in the Z axis. Due to the way the piezo is mounted it can only go up from 0 to 100 \u03bcm')
+
+        self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,8,0,1,5) 
         self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,8,2,1,2)
+        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,9,2,1,2)
         self.labelWaypoints.setStyleSheet('font-weight: bold;')
         self.labelWaypoints.setToolTip('A position of interest can be saved by pressing the Save Position Button. \nReturn to the position of interest by selecting it in the list and by pressing the Set Position Button. \nA location name can be edited by double-click or by pressing F2')
         self.labelWaypoints.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,8,0,1,2)
+        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,9,0,1,2)
         self.labelCommands.setStyleSheet('font-weight: bold;')
         self.labelCommands.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,9,0,1,5) 
+        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,10,0,1,5) 
         self.sepPositionSection3.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection3.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,10,2,4,2) 
-        self.listWaypoints.setFixedWidth(130)
-
-        self.buttonMove= QPushButton('Move Rel'); self.layoutPosition.addWidget(self.buttonMove,10,0,1,2)
-        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,13,0,1,2)    
-        #self.buttonReset.clicked.connect(self.setWaypoint) 
+        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,11,2,3,3) 
+        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,11,0,1,2)  
+        self.buttonReset.setToolTip("Recalibrate and reset the positioners to their original position")  
         self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,12,0,1,2)
-        #self.buttonSave.clicked.connect(self.saveWaypoint)    
-        self.buttonMoveTo= QPushButton('Move To'); self.layoutPosition.addWidget(self.buttonMoveTo,11,0,1,2)    
+        self.buttonSave.setToolTip("Save a position of interest in the list of waypoints")  
+        self.buttonMoveTo= QPushButton('Move To'); self.layoutPosition.addWidget(self.buttonMoveTo,13,0,1,2)    
+        self.buttonMoveTo.setToolTip("Return to a position by selecting from the waypoints list")  
                                                                           
         self.lineXmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveX', float(self.lineXmove.text())))
         self.lineYmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveY', float(self.lineYmove.text())))
         self.lineZmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveZ', float(self.lineZmove.text())))
 
-    #region: Mapping
-    def widgetMapping(self):
-        self.groupMapSize= QGroupBox('Map Settings'); self.groupMapSize.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
-        self.layoutMapSize= QGridLayout(self.groupMapSize)
-        self.layoutFrame.addWidget(self.groupMapSize)
+    def widgetExperiment(self):
+        self.groupExperiment= QGroupBox('Experiment'); self.groupExperiment.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
+        self.layoutExperiment= QGridLayout(self.groupExperiment)
+        self.layoutFrame.addWidget(self.groupExperiment)
 
-        self.labelX= QLabel('X'); self.layoutMapSize.addWidget(self.labelX,0,1)
-        self.labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
-        self.labelY= QLabel('Y'); self.layoutMapSize.addWidget(self.labelY,0,2)
-        self.labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
-
-        self.labelDistance= QLabel('Distance'); self.layoutMapSize.addWidget(self.labelDistance,1,0)
-        self.labelDistance.setToolTip('Distance (\u03bcm) between each landing per direction (X,Y)')
-
-        self.lineXdistance= QLineEdit(); self.layoutMapSize.addWidget(self.lineXdistance,1,1)
-        self.lineXdistance.setText('0')
-        self.lineXdistance.setValidator(QDoubleValidator(0, 500,1))
-
-        self.lineYdistance= QLineEdit(); self.layoutMapSize.addWidget(self.lineYdistance,1,2)
-        self.lineYdistance.setText('0')
-        self.lineYdistance.setValidator(QDoubleValidator(0, 500, 1))
-
-        self.labelN= QLabel('Landings'); self.layoutMapSize.addWidget(self.labelN,2,0)
-        self.labelN.setToolTip('Number of landings per direction (X,Y)')
-
-        self.lineXlandings= QLineEdit(); self.layoutMapSize.addWidget(self.lineXlandings,2,1)
-        self.lineXlandings.setText('1')
-        self.lineXlandings.setValidator(QIntValidator(0, 100))
-
-        self.lineYlandings= QLineEdit(); self.layoutMapSize.addWidget(self.lineYlandings,2,2)
-        self.lineYlandings.setText('1')
-        self.lineYlandings.setValidator(QIntValidator(0, 100))
-
-        self.labelPattern= QLabel('Map Pattern'); self.layoutMapSize.addWidget(self.labelPattern,3,0)
-        self.labelPattern.setToolTip('Set the mapping pattern: \n-Snake: Change line at the position of the last measurement \n-Straight: Return to initial position before changing line')
-
-        self.comboPattern= QComboBox(); self.layoutMapSize.addWidget(self.comboPattern,3,1,1,1)
-        self.comboPattern.addItems(['Snake', 'Straight'])
-        self.comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'pattern', self.comboPattern.currentIndex()))
-       
-        self.labelMethod= QLabel('Method'); self.layoutMapSize.addWidget(self.labelMethod, 4,0)
+        self.labelMethod= QLabel('Method'); self.layoutExperiment.addWidget(self.labelMethod, 4,0)
         self.labelMethod.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
 
-        self.comboMap= QComboBox(); self.layoutMapSize.addWidget(self.comboMap, 4,1,1,1)
-        self.comboMap.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
-        self.comboMap.addItem('None')
-        self.comboMap.addItem('SECCM')
+        self.comboMap= QComboBox(); self.layoutExperiment.addWidget(self.comboMap, 4,1,1,2)
+        self.comboMap.setToolTip(('Select the Mapping Method \n - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
         self.comboMap.addItem('SECM')
+        self.comboMap.addItem('SECCM')
         self.comboMap.setCurrentIndex(0)
 
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
-    
-        self.lineXdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dX', float(self.lineXdistance.text())))
-        self.lineYdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dY', float(self.lineYdistance.text())))
-        self.lineXlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nX', int(self.lineXlandings.text())))
-        self.lineYlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nY', int(self.lineYlandings.text())))
+
+        self.buttonMap= QPushButton('Start'); self.layoutExperiment.addWidget(self.buttonMap,6,0,1,3) 
+        self.buttonMap.setToolTip('Start experiments based on chosen experiment settings and landings coordinates')
+
+    #region: Mapping
+    def widgetMapping(self):
+        layoutFrame= QGridLayout()
+
+        labelX= QLabel('X'); layoutFrame.addWidget(labelX,0,1)
+        labelX.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+        labelY= QLabel('Y'); layoutFrame.addWidget(labelY,0,2)
+        labelY.setAlignment(Qt.AlignmentFlag.AlignCenter) 
+
+        labelDistance= QLabel('Distance (\u03bcm)'); layoutFrame.addWidget(labelDistance,1,0)
+        labelDistance.setToolTip('Distance (\u03bcm) between each landing per direction (X,Y)')
+
+        lineXdistance= QLineEdit(); layoutFrame.addWidget(lineXdistance,1,1); lineXdistance.setFixedWidth(75)
+        lineXdistance.setText('0')
+        lineXdistance.setValidator(QDoubleValidator(0, 500,1))
+
+        lineYdistance= QLineEdit(); layoutFrame.addWidget(lineYdistance,1,2); lineYdistance.setFixedWidth(75)
+        lineYdistance.setText('0')
+        lineYdistance.setValidator(QDoubleValidator(0, 500, 1))
+
+        labelN= QLabel('Landings'); layoutFrame.addWidget(labelN,2,0)
+        labelN.setToolTip('Number of landings per direction (X,Y)')
+
+        lineXlandings= QLineEdit(); layoutFrame.addWidget(lineXlandings,2,1); lineXlandings.setFixedWidth(75)
+        lineXlandings.setText('1')
+        lineXlandings.setValidator(QIntValidator(0, 100))
+
+        lineYlandings= QLineEdit(); layoutFrame.addWidget(lineYlandings,2,2); lineYlandings.setFixedWidth(75)
+        lineYlandings.setText('1')
+        lineYlandings.setValidator(QIntValidator(0, 100))
+
+        labelPattern= QLabel('Map Pattern'); layoutFrame.addWidget(labelPattern,3,0)
+        labelPattern.setToolTip('Set the mapping pattern: \n-Snake: Change line at the position of the last measurement \n-Straight: Return to initial position before changing line')
+
+        comboPattern= QComboBox(); layoutFrame.addWidget(comboPattern,3,1,1,1)
+        comboPattern.addItems(['Snake', 'Straight'])
+        comboPattern.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'pattern', comboPattern.currentIndex()))
+
+        lineXdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dX', float(lineXdistance.text())))
+        lineYdistance.editingFinished.connect(lambda: setattr(self.settingsMapping, 'dY', float(lineYdistance.text())))
+        lineXlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nX', int(lineXlandings.text())))
+        lineYlandings.editingFinished.connect(lambda: setattr(self.settingsMapping, 'nY', int(lineYlandings.text())))
+
+        return layoutFrame
     
     #region: Stack utility
     def widgetStack(self):
 
         self.stackMap= QStackedWidget()
         self.layoutFrame.addWidget(self.stackMap)
-        labelDefault= QLabel()
-        self.stackMap.addWidget(labelDefault)
-        self.stackMap.addWidget(self.widgetSECCM())
         self.stackMap.addWidget(self.widgetSECM())
+        self.stackMap.addWidget(self.widgetSECCM())
         self.stackMap.setCurrentIndex(0)
 
     def widgetSECCM(self):
         groupSECCM= QGroupBox('SECCM'); groupSECCM.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         layoutGroupSECCM= QVBoxLayout(groupSECCM)
         layoutSECCM= QGridLayout(); layoutGroupSECCM.addLayout(layoutSECCM)
+        mapping= self.widgetMapping()
+        layoutGroupSECCM.addLayout(mapping)
         
         labelSpeed= QLabel('Speed'); layoutSECCM.addWidget(labelSpeed,0,0)
         labelSpeedUnit= QLabel('\u03bcm/s'); layoutSECCM.addWidget(labelSpeedUnit,0,2)
@@ -253,9 +262,9 @@ class Mapping(QWidget):
         labelApproach=QLabel('Stop Method'); layoutSECCM.addWidget(labelApproach, 2,0)
         labelApproach.setToolTip(
             """Choose the method to evaluate the landing during the tip approach:
-        - Open Circuit Potential: Stop the tip based on the absolute change in Open Circuit Potential
-        - Potentiostatic: Apply a DC potential and stop the tip based in the absolute change in DC current
-        - Alternating Current: Apply a AC potential and stop the tip based in the absolute change in AC current""")
+        - Open Circuit Potential
+        - Potentiostatic
+        - Alternating Current""")
         
         comboSECCM= QComboBox(); layoutSECCM.addWidget(comboSECCM, 2,1)
         comboSECCM.addItem('Open Circuit')
@@ -264,7 +273,7 @@ class Mapping(QWidget):
         comboSECCM.currentIndexChanged.connect(lambda: self.stackSECCM.setCurrentIndex(comboSECCM.currentIndex()))
         comboSECCM.currentIndexChanged.connect(lambda: setattr(self.settingsSECCM, 'stop', comboSECCM.currentIndex()))
 
-        sep1= QFrame(); layoutSECCM.addWidget(sep1,3,0,1,3) 
+        sep1= QFrame(); layoutSECCM.addWidget(sep1,3,0,1,5) 
         sep1.setFrameShape(QFrame.Shape.HLine)
         sep1.setFrameShadow(QFrame.Shadow.Sunken)
 
@@ -307,7 +316,7 @@ class Mapping(QWidget):
 
         iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 3,1)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECCM, 'iRange', iRangeCombo.currentIndex()))
-        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA'))
       
         return frame
     
@@ -328,20 +337,21 @@ class Mapping(QWidget):
         layoutGroupSECM= QVBoxLayout(groupSECM)
         layoutSECM= QGridLayout(); layoutGroupSECM.addLayout(layoutSECM)
         
-        labelExperiment=QLabel('Experiment'); layoutSECM.addWidget(labelExperiment, 1,0)
+        labelExperiment=QLabel('Measurement'); layoutSECM.addWidget(labelExperiment, 1,0)
         labelExperiment.setToolTip(
-            """Choose the method to evaluate the landing during the tip approach:
-        - Open Circuit Potential: Stop the tip based on the absolute change in Open Circuit Potential
-        - Potentiostatic: Apply a DC potential and stop the tip based in the absolute change in DC current
-        - Alternating Current: Apply a AC potential and stop the tip based in the absolute change in AC current""")
+            """Choose an SECM experiment:
+        - Approach curve: Measuring kinetics through feedback mode
+        - Constant distance imaging: Imaging by rastering the probe at a constant Z-positioner height
+        - Hopping imaging: Imaging by doing approach curves at multiple landings """)
         
-        comboExperiment= QComboBox(); layoutSECM.addWidget(comboExperiment, 1,1)
+        comboExperiment= QComboBox(); layoutSECM.addWidget(comboExperiment, 1,1,1,2)
         comboExperiment.addItem('Approach curve')
-        comboExperiment.addItem('Constant Distance Map')
+        comboExperiment.addItem('Constant Distance')
+        comboExperiment.addItem('Hopping')
         comboExperiment.currentIndexChanged.connect(lambda: self.stackApproach.setCurrentIndex(comboExperiment.currentIndex()))
         comboExperiment.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'experiment', comboExperiment.currentIndex()))
 
-        sep1= QFrame(); layoutSECM.addWidget(sep1, 3,0,1,3) 
+        sep1= QFrame(); layoutSECM.addWidget(sep1, 4,0,1,5) 
         sep1.setFrameShape(QFrame.Shape.HLine)
         sep1.setFrameShadow(QFrame.Shadow.Sunken)
 
@@ -359,56 +369,114 @@ class Mapping(QWidget):
         layoutFrame= QGridLayout(frame)
         self.setLayout(self.layoutFrame)
 
-        labelPotential= QLabel('Potential'); layoutFrame.addWidget(labelPotential,0,0)
+        labelPositioner= QLabel('Positioner'); layoutFrame.addWidget(labelPositioner, 0,0)
+        labelPositioner.setToolTip(
+            """Choose a positioner to perform approach curve 
+                - Z-Stage is for a coarse approach curve used to determine approximate distance to substrate 
+                - Piezo is for a finer approach curve when close to substrate (Max range of 100 \u03bcm)
+            """)
+                                  
+        comboPositioner= QComboBox(); layoutFrame.addWidget(comboPositioner, 0,1,1,2)
+        comboPositioner.addItem('Z-stage')
+        comboPositioner.addItem('Piezo')
+        comboPositioner.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'positioner', comboPositioner.currentIndex()))
+
+        labelPotential= QLabel('E (V)'); layoutFrame.addWidget(labelPotential,1,0)
         labelPotential.setToolTip("Set the potential to apply during SECM approach")
-        labelPotentialUnit= QLabel('V'); layoutFrame.addWidget(labelPotentialUnit,0,2)
-        linePotential= QLineEdit(); layoutFrame.addWidget(linePotential,0,1)
-        linePotential.setFixedWidth(60); linePotential.setText('0.1')
+        linePotential= QLineEdit(); layoutFrame.addWidget(linePotential,1,1)
+        linePotential.setText('0.1')
         linePotential.editingFinished.connect(lambda: setattr(self.settingsSECM, 'Eapp', float(linePotential.text())))
 
-        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,1,0) 
+        labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,2,0) 
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
-        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 1,1)
+        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,1)
+        iRangeCombo.setFixedWidth(80)
+        iRangeCombo.setCurrentIndex(2)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
-        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
-        iRangeCombo.setCurrentIndex(1)
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA'))
+        iRangeCombo.setCurrentIndex(2)
 
-        labelSpeed= QLabel('Speed'); layoutFrame.addWidget(labelSpeed,2,0)
-        labelSpeedUnit= QLabel('\u03bcm/s'); layoutFrame.addWidget(labelSpeedUnit,2,2)
-        labelSpeed.setToolTip('Set the piezo speed for tip approach (0.1 to 5 \u03bcm/s). Higher speed (>1 \u03bcm/s), increases the likelihood of a tip crash!')
-        
-        lineSpeed= QLineEdit(); layoutFrame.addWidget(lineSpeed,2,1)
+        labelSpeed= QLabel('<i>v</i> (\u03bcm/s)'); layoutFrame.addWidget(labelSpeed,3,0)
+        labelSpeed.setToolTip('Set the speed for tip approach (0.1 to 10 \u03bcm/s). Higher speed for coarse approach (>1 \u03bcm/s), increases the likelihood of a tip crash!')
+        lineSpeed= QLineEdit(); layoutFrame.addWidget(lineSpeed,3,1)
         lineSpeed.setText('1')
-        lineSpeed.setFixedWidth(60)
         lineSpeed.editingFinished.connect(lambda: setattr(self.settingsSECM, 'speed', float(lineSpeed.text())))
 
-        labelStop= QLabel('Stop Method'); layoutFrame.addWidget(labelStop,3,0) 
-        labelStop.setToolTip("""Set stop criteria for positive and negative feedback
-                             1- Relative current change: For a bulk current of 1e-6 A with a 200% stop criteria, the tip will stop if the current increases above 2e-6 A 
-                             2- Absolute change in current: For a bulk current of 1e-6 A with \u0394I of 0.5e-6 A, the tip will stop if the current increases above 1.5e-6 A
-                             3- Current limit: Regardless of the bulk current, the tip will stop if the measured current increase above this value""")
+        sep1= QFrame(); layoutFrame.addWidget(sep1, 4,0,1,6) 
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        sep1.setFrameShadow(QFrame.Shadow.Sunken)
+
+        labelStop= QLabel('Stop'); layoutFrame.addWidget(labelStop,5,0) 
+        labelStop.setToolTip("""Set current Upper and Lower limit for stopping criteria of approach curve
+                             1- Relative current change: For a bulk current of 1e-9 A with a 25% stop criteria, the tip will stop if the current is above 1.25e-9 A or below 1.75e-9 A
+                             2- Absolute change in current: For a bulk current of 1e-9 A with \u0394I of 0.5e-9 A, the tip will stop if the current above 1.5e-9 A or below 0.5e-9 A
+                             3- Current limit: Regardless of the bulk current, the tip will stop if the measured current is outside the indicated range""")
         
-        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,3,1)
+        comboStop= QComboBox(); layoutFrame.addWidget(comboStop,5,1)
+        comboStop.setFixedWidth(90)
         comboStop.addItems(('\u0394I (%)', '\u0394I (A)', 'lim I (A)'))
         comboStop.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'limUnit', comboStop.currentIndex()))
         
-        labelPosI= QLabel('Positive'); layoutFrame.addWidget(labelPosI,4,0) 
-        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,4,1)
+        labelPosI= QLabel('Upper'); layoutFrame.addWidget(labelPosI,6,0) 
+        labelPosI.setToolTip('Set values for upper current limit based on relative (\u0394%I), absolute (\u0394I) or fixed limit')
+        linePosI= QLineEdit(); layoutFrame.addWidget(linePosI,6,1)
         linePosI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limPos', float(linePosI.text())))
-        linePosI.setText('200'); linePosI.setFixedWidth(60)
+        linePosI.setText('25'); linePosI.setFixedWidth(60)
         
-        labelNegI= QLabel('Negative'); layoutFrame.addWidget(labelNegI,5,0) 
-        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,5,1)
+        labelNegI= QLabel('Lower'); layoutFrame.addWidget(labelNegI,6,2) 
+        labelNegI.setToolTip('Set values for upper current limit based on relative (\u0394%I), absolute (\u0394I) or fixed limit')
+        lineNegI= QLineEdit(); layoutFrame.addWidget(lineNegI,6,3)
         lineNegI.editingFinished.connect(lambda: setattr(self.settingsSECM, 'limNeg', float(lineNegI.text())))
-        lineNegI.setText('50'); lineNegI.setFixedWidth(60)
+        lineNegI.setText('25'); lineNegI.setFixedWidth(60)
+
+        labelSpacer= QLabel(); layoutFrame.addWidget(labelSpacer,7,0) 
 
         return frame
     
     def SECM_mapConstant(self):
         frame= QFrame()
-        layoutFrame= QGridLayout(frame); self.setLayout(self.layoutFrame)
+        layoutFrame= QVBoxLayout(frame); self.setLayout(self.layoutFrame)
+        mapping= self.widgetMapping(); layoutFrame.addLayout(mapping)
+        layoutSECMsettings= QGridLayout(); layoutFrame.addLayout(layoutSECMsettings)
+
+        sep1= QFrame(); layoutSECMsettings.addWidget(sep1, 0,0,1,5) 
+        sep1.setFrameShape(QFrame.Shape.HLine)
+        sep1.setFrameShadow(QFrame.Shadow.Sunken)
+
+        labelPotential= QLabel('E (V)'); layoutSECMsettings.addWidget(labelPotential,1,0,1,1)
+        labelPotential.setToolTip("Set the potential to apply during SECM mapping")
+        linePotential= QLineEdit(); layoutSECMsettings.addWidget(linePotential,1,1)
+        linePotential.setFixedWidth(60); linePotential.setText('0.1')
+        linePotential.editingFinished.connect(lambda: setattr(self.settingsSECM, 'Eapp', float(linePotential.text())))
+
+        labelIrange= QLabel('I range'); layoutSECMsettings.addWidget(labelIrange,2,0) 
+        labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
+        iRangeCombo= QComboBox(); layoutSECMsettings.addWidget(iRangeCombo, 2,1)
+        iRangeCombo.setFixedWidth(80)
+        iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
+        iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
+        iRangeCombo.setCurrentIndex(1)
         
-        labelP= QLabel('Placeholder for constant distance map'); layoutFrame.addWidget(labelP,0,0)
+        labelSpeed= QLabel('<i>v<i> (\u03bcm/s)'); layoutSECMsettings.addWidget(labelSpeed,3,0)
+        labelSpeed.setToolTip('Set speed for mapping in XY')
+        lineSpeed= QLineEdit(); layoutSECMsettings.addWidget(lineSpeed,3,1)
+        lineSpeed.setText('5')
+        lineSpeed.setFixedWidth(60)
+        lineSpeed.editingFinished.connect(lambda: setattr(self.settingsMapping, 'speed', float(lineSpeed.text())))
+
+        labelWait= QLabel('Wait (s)'); layoutSECMsettings.addWidget(labelWait,4,0)
+        labelWait.setToolTip('Waiting time before acquiring echem measurement')
+        lineWait= QLineEdit(); layoutSECMsettings.addWidget(lineWait,4,1)
+        lineWait.setText('1')
+        lineWait.setFixedWidth(60)
+        lineWait.editingFinished.connect(lambda: setattr(self.settingsMapping, 'wait', float(lineWait.text())))
+
+        labelN= QLabel('N data'); layoutSECMsettings.addWidget(labelN,4,2)
+        labelN.setToolTip('Number of echem datapoints to average')
+        lineN= QLineEdit(); layoutSECMsettings.addWidget(lineN,4,3)
+        lineN.setText('5')
+        lineN.setFixedWidth(60)
+        lineWait.editingFinished.connect(lambda: setattr(self.settingsMapping, 'Ndata', int(lineN.text())))
 
         return frame
     
@@ -462,7 +530,6 @@ class Mapping(QWidget):
 
         else:
             super().keyPressEvent(event) 
-  
 
 if __name__ == '__main__':
     app= QApplication([])

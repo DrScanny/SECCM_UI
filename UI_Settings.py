@@ -11,15 +11,16 @@ class Move():
 @dataclass
 class Mapping():
     pattern: int= 0 #Pattern to follow when mapping: 0-> Snake, 1-> Parallel
-    mode: int= 0 #Mapping mode: 0-> None, 1-> SECCM, 2-> SECM
+    mode: int= 0 #Mapping mode: 0-> SECM, 1-> SECCM
     dX: int= 0 #Distance between landings in X always positive
     dY: int= 0 #Distance between landings in Y always positive
     nX: int= 1 #Number of landings in X must be >=1
     nY: int= 1 #Number of landings in Y must be >=1
     map: list[list[int]]= field(default_factory=list) #Coordinates for mapping
+    wait: float=1 #Waiting time before taking measurement
+    speed: float=5 #Speed of XY-stage 
+    Ndata: int=5 #Number of datapoints to measure
     
-    # dX=0, dY=0, nX=1, nY=1 -> Approach curve at current position
-   
 @dataclass
 class SECCM():
     speed: float= 1 #Approach speed in um
@@ -27,19 +28,20 @@ class SECCM():
     stop: int= 0 #Technique to use for approach stop: 0->OCP, 1-> DC Potentiostatic, 2-> AC 
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     Istop: float=1e-3 #Potentiostatic: Current treshold to stop tip
-    iRange: int= 0 #Current Range by default AUTO
-    #techList: list[echemSettings]= field(default_factory=list)
+    iRange: int= 0 #Current Range by default 1 nA
+    techList: list[echemSettings]= field(default_factory=list)
 
 @dataclass
 class SECM():
     speed: float= 1 #Approach speed in um
+    positioner: int= 0 # Positioner to use: Z-stage(coarse approach)->0, Piezo(fine approach)->1
     retract: float= 50 #Tip retraction height after landing in um
     experiment: int= 0 #SECM technique 0->approach curve, 1-> constant distance map
     Eapp: float= 0.1 #Potentiostatic: Potential to apply during approach
     stop:int=0
-    limPos: float=200 #Potentiostatic: Current treshold for negative feedback
-    limNeg: float=50 #Potentiostatic: Current treshold for positive feedback
-    iRange: int= 1 #Current Range by default AUTO
+    limPos: float=25 #Potentiostatic: Current treshold for positive feedback
+    limNeg: float=25 #Potentiostatic: Current treshold for negative feedback
+    iRange: int= 2 #Current Range by default 10 nA
 
 @dataclass
 class echemSettings():
