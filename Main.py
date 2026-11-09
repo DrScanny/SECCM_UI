@@ -146,6 +146,7 @@ class Main(QMainWindow):
         self.mapping.buttonXYZ.clicked.connect(self.PImove)
         self.mapping.buttonMoveTo.clicked.connect(self.PImoveTo)
         self.mapping.buttonReset.clicked.connect(self.PIreset)
+        self.mapping.buttonPiezo.clicked.connect(self.PIpiezoMove)
 
         self.devices.buttonStopAll.clicked.connect(self.stopAll)
 
@@ -248,8 +249,8 @@ class Main(QMainWindow):
         except Exception as err:
             f'[ERROR] **Main|PImove**: {err}.'
 
-    def PIpiezo(self):
-
+    def PIpiezoMove(self):
+    
         try:
             move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text()), float(self.mapping.linePzmove.text())]
 
@@ -339,6 +340,7 @@ class Main(QMainWindow):
         self.PI.thread.started.connect(self.PI.worker.approach)
         self.PI.worker.position.connect(lambda position: self._positionUpdate(position))
         self.PI.worker.finished.connect(lambda: self._closeThread())
+        self.PI.worker.finished.connect(lambda: self._progress({'end':'0'}))
 
         #Thread assigned to the potentiostat control during approach
         self.BL= threadInit(BLmethod, self.devices.BL.potentiostat, ExpSettings, MapSettings, self.events)

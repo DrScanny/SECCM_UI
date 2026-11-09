@@ -105,6 +105,9 @@ class PI(QObject):
             if self.Zstage.IsConnected():
                 self.Zstage.gcscommands.FPL()
 
+            if self.Piezo.IsConnected():
+                self.Piezo.gcscommands.MOV('3', 0)
+
             self.wait()
             print('[POSITIONERS] Reset!')
        

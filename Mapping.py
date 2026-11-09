@@ -177,8 +177,8 @@ class Mapping(QWidget):
         self.comboMap.currentIndexChanged.connect(lambda: self.stackMap.setCurrentIndex(self.comboMap.currentIndex()))
         self.comboMap.currentIndexChanged.connect(lambda: setattr(self.settingsMapping, 'mode', self.comboMap.currentIndex()))
 
-        self.buttonMap= QPushButton('Start Map'); self.layoutExperiment.addWidget(self.buttonMap,6,0,1,3) 
-        self.buttonMap.setToolTip('Start mapping experiments based on chosen experiment settings and landings coordinates')
+        self.buttonMap= QPushButton('Start'); self.layoutExperiment.addWidget(self.buttonMap,6,0,1,3) 
+        self.buttonMap.setToolTip('Start experiments based on chosen experiment settings and landings coordinates')
 
     #region: Mapping
     def widgetMapping(self):
@@ -391,6 +391,7 @@ class Mapping(QWidget):
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
         iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,1)
         iRangeCombo.setFixedWidth(80)
+        iRangeCombo.setCurrentIndex(2)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
         iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA'))
         iRangeCombo.setCurrentIndex(2)
