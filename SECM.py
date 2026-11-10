@@ -144,7 +144,7 @@ class SECM_PI(QObject):
             
             if record: #Option to record data from positioner
                 try:
-                    self.recorddata(positioner, 1024, 0.5, axis)
+                    self.recordData(positioner, 1024, 10, axis)
 
                 except GCSError as err:
                     print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
@@ -187,20 +187,20 @@ class SECM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.processdata(self.drec)
+            print("executing finally block")
+            self.processData(self.drec)
+            print("executing processData")
             self.Piezo.gcscommands.VEL('3', 1)
             self.finished.emit()
 
-            
     #region: record
-    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float, axis:int):
+    def recordData(self, PIdevice: GCSDevice, n_points: int, rate: float, axis:int):
         """Set up data recorder to record 2 tables for first axis after next motion command.
         @type drec : pipython.datarectools.Datarecorder
         """
         self.drec= datarectools.Datarecorder(PIdevice)
         self.drec.numvalues = n_points
         self.drec.samplefreq = rate
-        print('data recorder rate: {:.2f} Hz'.format(self.drec.samplefreq))
         self.drec.options = (datarectools.RecordOptions.ACTUAL_POSITION_2,
                         datarectools.RecordOptions.COMMANDED_POSITION_1)
         self.drec.sources = self.drec.gcs.axes[axis]
@@ -208,18 +208,15 @@ class SECM_PI(QObject):
         self.drec.arm()
 
     #region: process
-    def processdata(self, drec):
+    def processData(self, drec):
         """Read out, plot and save data recorder data.
         @type drec : pipython.datarectools.Datarecorder
         """
-        if pyplot is None:
-            print('matplotlib is not installed')
-            return
+
         pyplot.plot(drec.timescale, drec.data[0], color='red')
         pyplot.plot(drec.timescale, drec.data[1], color='blue')
         pyplot.xlabel('time (s)')
         pyplot.ylabel(', '.join((drec.header['NAME0'], drec.header['NAME1'])))
-        pyplot.title('Datarecorder data over time')
         pyplot.grid(True)
         pyplot.show()
         print('save GCSArray to file "gcsarray.dat"')
