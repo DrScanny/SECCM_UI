@@ -481,14 +481,15 @@ class Main(QMainWindow):
         self._enableAction()
 
         try:
-            self.data_file #checking if file is open
+            if self.data_file: #checking if file is open
+                self.data_file.close()
+                print('Datafile closed')
+                
         except NameError:
             print('[_closeThread] No datafile found to close')
         else:
-            self.data_file.close()
-            print('Datafile closed')
+            pass   
 
-     
     """
     def closeEvent(self, event):
         # Create a confirmation dialog

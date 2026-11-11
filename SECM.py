@@ -112,8 +112,8 @@ class SECM_PI(QObject):
     def approach(self, record=True): #Method for approach curve
 
         try:
-            positioner:GCSDevice= self.Zstage #Default positioner use for approach curve
-            axis=0
+            self.positioner:GCSDevice= self.Zstage #Default positioner use for approach curve
+            self.axis='1'
             match self.settings.positioner: #Match the chosen positioner to the appropriate method for approaching
 
                 case 0: #Coarse positioning with Z-stage
@@ -124,8 +124,8 @@ class SECM_PI(QObject):
 
                 case 1: #Coarse positioning with Z-stage
                     print("Preparing Piezo for SECM approach (~ 20s), please wait...")
-                    positioner=self.Piezo
-                    axis=2
+                    self.positioner=self.Piezo
+                    axis='3'
 
                     #Move Piezo up 100 um
                     self.Piezo.gcscommands.VEL('3', 10)
@@ -144,35 +144,42 @@ class SECM_PI(QObject):
             
             if record: #Option to record data from positioner
                 try:
-                    self.recorddata(positioner, 1024, 0.5, axis)
+                    self.recordData()
 
                 except GCSError as err:
                     print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
                 
             self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
-            positioner.gcscommands.MOV(positioner.axes[axis], 0)
+            self.positioner.gcscommands.MOV(self.axis, 0)
 
             # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
-            while any(list(positioner.gcscommands.IsMoving().values())):
+            while any(list(self.positioner.gcscommands.IsMoving().values())):
             
                 #While the Piezo is moving, stop if **Stop Criteria** is met
                 if self.event_stop.is_set():
-                    positioner.gcscommands.HLT(noraise=True)
+                    self.positioner.gcscommands.HLT(noraise=True)
                     print('[DEBUG] Landing succesful!?')
-                    return
+                    break
                                 
                 #While the Piezo is moving, stop if user pressed stop
                 if self.threadInstance.isInterruptionRequested():
-                    positioner.gcscommands.HLT(noraise=True)
+                    self.positioner.gcscommands.HLT(noraise=True)
                     print('[MSG] Approach Interrupted by User!')
-                    return
+                    break
 
                 #While stage is moving it updates the position
                 self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
                                     round(self.XYstage.qPOS()['2'],3), 
                                     round(self.Zstage.qPOS()['1']-25,3), 
                                     round(self.Piezo.qPOS()['3'],3)])
-    
+
+            if record:
+                try:
+                    print('before processData')
+                    self.processData()
+                except Exception as err:
+                    print(f'error with process data {err}')
+      
         except GCSError as err:
             print(f'[ERROR] **SECM_PI|approach**: {err}.')
                 
@@ -187,43 +194,59 @@ class SECM_PI(QObject):
         
         finally:
             # This block always runs, even if an exception or return occurred
-            self.processdata(self.drec)
+            print('executing finally block')
             self.Piezo.gcscommands.VEL('3', 1)
+            self.Piezo.gcscommands.VEL('3', 5)
             self.finished.emit()
-
             
+
     #region: record
-    def recorddata(self, PIdevice: GCSDevice, n_points: int, rate: float, axis:int):
-        """Set up data recorder to record 2 tables for first axis after next motion command.
-        @type drec : pipython.datarectools.Datarecorder
-        """
-        self.drec= datarectools.Datarecorder(PIdevice)
-        self.drec.numvalues = n_points
-        self.drec.samplefreq = rate
-        print('data recorder rate: {:.2f} Hz'.format(self.drec.samplefreq))
-        self.drec.options = (datarectools.RecordOptions.ACTUAL_POSITION_2,
-                        datarectools.RecordOptions.COMMANDED_POSITION_1)
-        self.drec.sources = self.drec.gcs.axes[axis]
-        self.drec.trigsources = datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
+    def recordData(self):
+        self.drec = datarectools.Datarecorder(self.positioner)
+        self.drec.samplerate= 2000
+        #self.drec.numvalues= 1024
+        self.drec.options= datarectools.RecordOptions.ACTUAL_POSITION_2,
+                            
+        self.drec.sources= self.positioner.axes[0]
+        self.drec.trigsources= datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
         self.drec.arm()
 
-    #region: process
-    def processdata(self, drec):
-        """Read out, plot and save data recorder data.
+    def processData(self):
+        self.drec.wait()
+        print('Processing Data')
+        print(self.drec.timescale)
+        header, data = self.drec.read()
+        #print(data[0])
+        #print(f'number of element recorded: {len(data[0])}')
+        npdata = np.array(data[0])
+        np.savetxt('posOutput.txt', npdata, newline='\n', delimiter=',')
+
+    """
+    def recorddata(self, axis:int):
+        Set up data recorder to record 2 tables for first axis after next motion command.
         @type drec : pipython.datarectools.Datarecorder
-        """
-        if pyplot is None:
-            print('matplotlib is not installed')
-            return
-        pyplot.plot(drec.timescale, drec.data[0], color='red')
-        pyplot.plot(drec.timescale, drec.data[1], color='blue')
-        pyplot.xlabel('time (s)')
-        pyplot.ylabel(', '.join((drec.header['NAME0'], drec.header['NAME1'])))
-        pyplot.title('Datarecorder data over time')
-        pyplot.grid(True)
-        pyplot.show()
-        print('save GCSArray to file "gcsarray.dat"')
-        pitools.savegcsarray('gcsarray.dat', drec.header, drec.data)
+        
+        #Setting recording rate input*device sample rate
+        self.positioner.gcscommands.RTR(10)
+        print('RTR successful?')
+        #Setting trigger for PIdevice (<table#>,<Trigger source>,<Value>) -> (<table 1>,<Any movement command>,<Dummy>) 
+        self.positioner.gcscommands.DRT(0,1) 
+        print("DRT successful ?")
+        #Setting recording source for PIdevice (<table#>,<Data Source>,<Recording option>) -> (<table 1>,<Any movement command>,<Dummy>) 
+        self.positioner.gcscommands.DRC(1, '1', 2)
+        print("DRC successful ?")
+    
+    
+    #region: process
+    
+    def processdata(self):
+        print("processing data")
+        #print(f'qDRL:{self.positioner.gcscommands.qDRL()}')
+        print(self.positioner.gcscommands.qDRR(tables=1, offset=1, numvalues=1024))
+        print("processing data success?")
+    """
+
+
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECM BL
@@ -325,12 +348,9 @@ class SECM_BL(QObject):
 
                     if self.event_stop.is_set():
                         print('[MSG] Reached positioner limit, measurement stopped!')
-                        self.finished.emit()
                         return
 
                     if self.threadInstance.isInterruptionRequested():
-                        self.event_stop.set()
-                        self.finished.emit()
                         return
                 
         except Exception as err:
