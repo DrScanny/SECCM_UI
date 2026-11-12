@@ -110,6 +110,7 @@ class SECM_PI(QObject):
 
     #region: approach
     def approach(self, record=True): #Method for approach curve
+        originPos:float= 0
 
         try:
             self.positioner:GCSDevice= self.Zstage #Default positioner use for approach curve
@@ -125,7 +126,8 @@ class SECM_PI(QObject):
                 case 1: #Coarse positioning with Z-stage
                     print("Preparing Piezo for SECM approach (~ 20s), please wait...")
                     self.positioner=self.Piezo
-                    axis='3'
+                    self.axis='3'
+                    originPos= np.round(self.Zstage.gcscommands.qPOS()['1'],3)
 
                     #Move Piezo up 100 um
                     self.Piezo.gcscommands.VEL('3', 10)
@@ -155,6 +157,7 @@ class SECM_PI(QObject):
             # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
             while any(list(self.positioner.gcscommands.IsMoving().values())):
             
+                time.sleep(0.01)
                 #While the Piezo is moving, stop if **Stop Criteria** is met
                 if self.event_stop.is_set():
                     self.positioner.gcscommands.HLT(noraise=True)
@@ -172,6 +175,8 @@ class SECM_PI(QObject):
                                     round(self.XYstage.qPOS()['2'],3), 
                                     round(self.Zstage.qPOS()['1']-25,3), 
                                     round(self.Piezo.qPOS()['3'],3)])
+
+            self.event_stop.set()
 
             if record:
                 try:
@@ -195,7 +200,7 @@ class SECM_PI(QObject):
         finally:
             # This block always runs, even if an exception or return occurred
             print('executing finally block')
-            self.Piezo.gcscommands.VEL('3', 1)
+            self.Zstage.gcscommands.VEL('1', 1)
             self.Piezo.gcscommands.VEL('3', 5)
             self.finished.emit()
             
@@ -203,11 +208,11 @@ class SECM_PI(QObject):
     #region: record
     def recordData(self):
         self.drec = datarectools.Datarecorder(self.positioner)
-        self.drec.samplerate= 2000
+        self.drec.samplerate= 1000
         #self.drec.numvalues= 1024
         self.drec.options= datarectools.RecordOptions.ACTUAL_POSITION_2,
                             
-        self.drec.sources= self.positioner.axes[0]
+        self.drec.sources= self.axis
         self.drec.trigsources= datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
         self.drec.arm()
 
@@ -289,8 +294,8 @@ class SECM_BL(QObject):
                 
                 case 1: #Case for fine approach with Piezo
                     expTime=3600
-                    timestep= 0.005
-                    nBulk= 600
+                    timestep= 0.01
+                    nBulk= 300
             
             #For SECM approach curve for now only chronoamp approach
             approachSettings= UI_Settings.echemSettings('CA', duration=expTime, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)

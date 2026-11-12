@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt, QEvent, QObject, Signal, Slot, QThread, QThreadPo
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QButtonGroup, QPushButton, 
                                QMessageBox, QTextEdit,  QHBoxLayout, QVBoxLayout, QDockWidget,
-                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget,
+                               QMainWindow, QStatusBar, QWidget, QFrame, QListWidget, QListWidgetItem,
                                QSplitter, QPlainTextEdit, QLabel, QTreeWidgetItem, QAbstractItemView,
                                QTreeWidget, QProgressDialog, QProgressBar, QDialog, QDialogButtonBox)
 
@@ -156,6 +156,7 @@ class Main(QMainWindow):
         self.experiments.tree.itemClicked.connect(self.Main_ChangeSettingsPage)
         self.experiments.buttonStart.clicked.connect(self.startEchem)
         self.mapping.buttonMap.clicked.connect(self.startMap)
+        self.mapping.buttonSave.clicked.connect(self.saveWaypoint)
 
         #endregion
         #endregion
@@ -272,8 +273,8 @@ class Main(QMainWindow):
     def PImoveTo(self):
 
         try:
-            selected= self.mapping.listWaypoints.currentItem()
-            move= selected.data(Qt.ItemDataRole.UserRole)
+            #selected= self.mapping.listWaypoints.currentItem()
+            move= [float(self.mapping.lineXmove.text()), float(self.mapping.lineYmove.text()), float(self.mapping.lineZmove.text())+25, float(self.mapping.linePzmove.text())]
 
             self.PI= threadInit(PI, self.devices.PIdevices, move)
             self.PI.thread.started.connect(self.PI.worker.moveToXYZ)
@@ -282,6 +283,7 @@ class Main(QMainWindow):
             self.PI.worker.finished.connect(lambda: self._closeThread())
             
             self.PI.thread.start()
+            self.mapping.lineXmove.setText('0'); self.mapping.lineYmove.setText('0'); self.mapping.lineZmove.setText('0')
             self._disableAction()
             self._progress({'start': 'Positioner Moving'})
 
@@ -422,6 +424,15 @@ class Main(QMainWindow):
         self.mapping.labelZpos.setText(str(position[2]))
         self.mapping.labelPzpos.setText(str(position[3]))
 
+     #region saveWaypoints
+    def saveWaypoint(self):
+         coordinates= [-1*round(self.devices.PIdevices['XY'].qPOS()['1'],3), round(self.devices.PIdevices['XY'].qPOS()['2'],3) , round(self.devices.PIdevices['Z'].qPOS()['1']-25,3)]
+         listItem= QListWidgetItem(f'Pos[{self.mapping.listWaypoints.count()}]: ({self.mapping.labelXpos.text()},{self.mapping.labelYpos.text()},{self.mapping.labelZpos.text()})')
+         #listItem.setFlags(listItem.flags() | Qt.ItemFlag.ItemIsEditable) 
+         listItem.setData(Qt.ItemDataRole.UserRole, coordinates)
+         listItem.setToolTip(f'Saved Position: ({self.mapping.labelXpos.text()},{self.mapping.labelYpos.text()},{self.mapping.labelZpos.text()})')
+         self.mapping.listWaypoints.addItem(listItem)
+
     #region: Progress Bar
     def _progress(self, status:dict[str,str]):
         if 'start' in status:
@@ -487,6 +498,9 @@ class Main(QMainWindow):
                 
         except NameError:
             print('[_closeThread] No datafile found to close')
+
+        except Exception as err:
+            print(f'[Error] self.data_file: {err}')
         else:
             pass   
 

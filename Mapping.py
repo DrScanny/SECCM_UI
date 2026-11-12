@@ -126,47 +126,49 @@ class Mapping(QWidget):
         self.labelZmax= QLabel('-25');  self.layoutPosition.addWidget(self.labelZmax, 6,3); self.labelZmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
         self.labelPzmax= QLabel('100');  self.layoutPosition.addWidget(self.labelPzmax, 6,4); self.labelPzmax.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.buttonXYZ= QPushButton('Move XYZ'); self.layoutPosition.addWidget(self.buttonXYZ,7,0,1,3)
-        self.buttonXYZ.setToolTip('Move the XYZ stage relative to its current position')
-        self.buttonPiezo= QPushButton('Move Pz'); self.layoutPosition.addWidget(self.buttonPiezo,7,3,1,2)
-        self.buttonPiezo.setToolTip('Move the piezo to absolute position in the Z axis. Due to the way the piezo is mounted it can only go up from 0 to 100 \u03bcm')
-
-        self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,8,0,1,5) 
+        self.sepPositionSection2= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection2,7,0,1,5) 
         self.sepPositionSection2.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection2.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,9,2,1,2)
+        self.labelWaypoints= QLabel('Positions'); self.layoutPosition.addWidget(self.labelWaypoints,8,2,1,2)
         self.labelWaypoints.setStyleSheet('font-weight: bold;')
         self.labelWaypoints.setToolTip('A position of interest can be saved by pressing the Save Position Button. \nReturn to the position of interest by selecting it in the list and by pressing the Set Position Button. \nA location name can be edited by double-click or by pressing F2')
         self.labelWaypoints.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,9,0,1,2)
+        self.labelCommands= QLabel('Commands'); self.layoutPosition.addWidget(self.labelCommands,8,0,1,2)
         self.labelCommands.setStyleSheet('font-weight: bold;')
         self.labelCommands.setAlignment(Qt.AlignmentFlag.AlignCenter) 
 
-        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,10,0,1,5) 
+        self.sepPositionSection3= QFrame(); self.layoutPosition.addWidget(self.sepPositionSection3,9,0,1,5) 
         self.sepPositionSection3.setFrameShape(QFrame.Shape.HLine)
         self.sepPositionSection3.setFrameShadow(QFrame.Shadow.Sunken)
 
-        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,11,2,3,3) 
-        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,11,0,1,2)  
+        self.listWaypoints= QListWidget(); self.layoutPosition.addWidget(self.listWaypoints,10,2,5,3) 
+        self.buttonXYZ= QPushButton('Move Rel XYZ'); self.layoutPosition.addWidget(self.buttonXYZ,10,0,1,2)
+        self.buttonXYZ.setToolTip('Move the XYZ stage relative to its current position')
+        self.buttonMoveTo= QPushButton('Move To XYZ'); self.layoutPosition.addWidget(self.buttonMoveTo,11,0,1,2)    
+        self.buttonMoveTo.setToolTip("Move XYZ to coordinate")  
+        self.buttonPiezo= QPushButton('Move To Pz'); self.layoutPosition.addWidget(self.buttonPiezo,12,0,1,2)
+        self.buttonPiezo.setToolTip('Move the piezo to absolute position in the Z axis. Due to the way the piezo is mounted it goes up from 0 to 100 \u03bcm')
+
+        self.buttonReset= QPushButton('Reset'); self.layoutPosition.addWidget(self.buttonReset,13,0,1,2)  
         self.buttonReset.setToolTip("Recalibrate and reset the positioners to their original position")  
-        self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,12,0,1,2)
+        self.buttonSave= QPushButton('Save'); self.layoutPosition.addWidget(self.buttonSave,14,0,1,2)
         self.buttonSave.setToolTip("Save a position of interest in the list of waypoints")  
-        self.buttonMoveTo= QPushButton('Move To'); self.layoutPosition.addWidget(self.buttonMoveTo,13,0,1,2)    
-        self.buttonMoveTo.setToolTip("Return to a position by selecting from the waypoints list")  
                                                                           
         self.lineXmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveX', float(self.lineXmove.text())))
         self.lineYmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveY', float(self.lineYmove.text())))
         self.lineZmove.editingFinished.connect(lambda: setattr(self.settingsMove, 'moveZ', float(self.lineZmove.text())))
+        self.listWaypoints.itemDoubleClicked.connect(self.waypointDoubleClicked)
+        
 
     def widgetExperiment(self):
         self.groupExperiment= QGroupBox('Experiment'); self.groupExperiment.setStyleSheet(""" QGroupBox {font-weight: bold;}  """)
         self.layoutExperiment= QGridLayout(self.groupExperiment)
         self.layoutFrame.addWidget(self.groupExperiment)
 
-        self.labelMethod= QLabel('Method'); self.layoutExperiment.addWidget(self.labelMethod, 4,0)
-        self.labelMethod.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
+        self.labelType= QLabel('Type'); self.layoutExperiment.addWidget(self.labelType, 4,0)
+        self.labelType.setToolTip(('Select the Mapping Method \n     - No Map: Echem measurement only \n     - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
 
         self.comboMap= QComboBox(); self.layoutExperiment.addWidget(self.comboMap, 4,1,1,2)
         self.comboMap.setToolTip(('Select the Mapping Method \n - SECCM: Mapping using SECCM \n     - SECM: Mapping or approach curves in SECM '))
@@ -389,9 +391,7 @@ class Mapping(QWidget):
 
         labelIrange= QLabel('I range'); layoutFrame.addWidget(labelIrange,2,0) 
         labelIrange.setToolTip('Choose Irange closest to the expected current of your electrode')
-        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,1)
-        iRangeCombo.setFixedWidth(80)
-        iRangeCombo.setCurrentIndex(2)
+        iRangeCombo= QComboBox(); layoutFrame.addWidget(iRangeCombo, 2,1); iRangeCombo.setFixedWidth(80)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
         iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA'))
         iRangeCombo.setCurrentIndex(2)
@@ -455,7 +455,7 @@ class Mapping(QWidget):
         iRangeCombo.setFixedWidth(80)
         iRangeCombo.currentIndexChanged.connect(lambda: setattr(self.settingsSECM, 'iRange', iRangeCombo.currentIndex()))
         iRangeCombo.addItems(('100pA', '1nA', '10nA', '100nA', '1uA', '10uA', '100uA', '1mA'))
-        iRangeCombo.setCurrentIndex(1)
+        iRangeCombo.setCurrentIndex(2)
         
         labelSpeed= QLabel('<i>v<i> (\u03bcm/s)'); layoutSECMsettings.addWidget(labelSpeed,3,0)
         labelSpeed.setToolTip('Set speed for mapping in XY')
@@ -483,7 +483,6 @@ class Mapping(QWidget):
     #endregion
     
     def mapCoordinates(self):
-
         map=[]
 
         if self.settingsMapping.dX==0 and self.settingsMapping.dY==0:
@@ -512,15 +511,18 @@ class Mapping(QWidget):
 
             setattr(self.settingsMapping, 'map', map)
         
-    #region saveWaypoints
-    def saveWaypoint(self):
-         coordinates= [float(self.labelXpos.text()), float(self.labelYpos.text()), float(self.labelZpos.text())]
-         listItem= QListWidgetItem(f'Pos[{self.listWaypoints.count()}]: ({self.labelXpos.text()},{self.labelYpos.text()},{self.labelZpos.text()})')
-         listItem.setFlags(listItem.flags() | Qt.ItemFlag.ItemIsEditable) 
-         listItem.setData(Qt.ItemDataRole.UserRole, coordinates)
-         listItem.setToolTip(f'Saved Position: ({self.labelXpos.text()},{self.labelYpos.text()},{self.labelZpos.text()})')
-         self.listWaypoints.addItem(listItem)
 
+
+    def waypointDoubleClicked(self, item):
+        # 'item' is the QListWidgetItem that was double-clicked
+    
+        rowData= item.data(Qt.ItemDataRole.UserRole)
+        if item:
+            self.lineXmove.setText(rowData[0])
+            self.lineYmove.setText(rowData[1])
+            self.lineZmove.setText(rowData[2])
+    
+            
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete:
             row= self.listWaypoints.currentRow()
