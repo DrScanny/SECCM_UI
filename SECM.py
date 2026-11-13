@@ -72,7 +72,8 @@ class SECM_PI(QObject):
         self.Piezo:GCSDevice= PIdevice['Pz']
         
         self.settings:UI_Settings.SECM= SECMsettings
-        self.event_ready:threading.Event= event['ready']
+        self.eventPI:threading.Event= event['PI']
+        self.eventBL:threading.Event= event['BL']
         self.event_stop:threading.Event= event['stop']
         self.threadInstance= threadInstance
         self.mapSettings= mapSettings
@@ -107,7 +108,6 @@ class SECM_PI(QObject):
 
     #region: approach
     def approach(self, record=True): #Method for approach curve
-        originPos:float= 0
 
         try:
             self.positioner:GCSDevice= self.Zstage #Default positioner use for approach curve
@@ -124,18 +124,25 @@ class SECM_PI(QObject):
                     print("Preparing Piezo for SECM approach (~ 20s), please wait...")
                     self.positioner=self.Piezo
                     self.axis='3'
-                    originPos= np.round(self.Zstage.gcscommands.qPOS()['1'],3)
 
                     #Move Piezo up 100 um
-                    self.Piezo.gcscommands.VEL('3', 10)
+                    self.Piezo.gcscommands.VEL('3', 5)
                     self.Piezo.gcscommands.MOV('3', 100)
-                    time.sleep(1)
 
                     #Move Z-stage down 100 um to offset the Piezo going up
-                    self.Zstage.gcscommands.VEL('1', 10e-3)
+                    self.Zstage.gcscommands.VEL('1', 5e-3)
                     self.Zstage.gcscommands.MVR('1', -0.1)
-                    time.sleep(10)
                     self.Piezo.gcscommands.VEL('3', self.settings.speed)
+
+                    while any(list(self.positioner.gcscommands.IsMoving().values())):
+                        time.sleep(0.01)
+
+                        if self.threadInstance.isInterruptionRequested():
+                            self.Zstage.gcscommands.HLT(noraise=True)
+                            print('[MSG] Approach Interrupted by User!')
+                            return
+                        
+                    time.sleep(1)
 
                 case _:
                     print('[ERROR] Positioner not recognized')
@@ -148,13 +155,17 @@ class SECM_PI(QObject):
                 except GCSError as err:
                     print(f'[ERROR] **SECM|SECM_PI|approachPI**: {err}.')
                 
-            self.event_ready.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
+            #[Event] Signaling positioner ready and waiting until potentiostat is ready
+            self.eventPI.set() #PI positioner ready
+            self.eventBL.wait() #Wait until bulk current measurement is terminated and coordinate positioner movement with echem measurement
+            
+            #[Command] Once both potentiostat and positioner are ready start approaching
             self.positioner.gcscommands.MOV(self.axis, 0)
 
             # Waiting for further commands while positioner are moving except for special case interrupt: 1- Tip approach stoppage, 2- User stoppage
             while any(list(self.positioner.gcscommands.IsMoving().values())):
             
-                time.sleep(0.01)
+                
                 #While the Piezo is moving, stop if **Stop Criteria** is met
                 if self.event_stop.is_set():
                     self.positioner.gcscommands.HLT(noraise=True)
@@ -169,12 +180,12 @@ class SECM_PI(QObject):
 
                 #While stage is moving it updates the position
                 self.updatePos()
+                time.sleep(0.01)
 
             self.event_stop.set()
 
             if record:
                 try:
-                    print('before processData')
                     self.processData()
                 except Exception as err:
                     print(f'error with process data {err}')
@@ -201,7 +212,6 @@ class SECM_PI(QObject):
             self.finished.emit()
 
     #region:utility
-
     def updatePos(self):
         self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
                             round(self.XYstage.qPOS()['2'],3), 
@@ -211,19 +221,20 @@ class SECM_PI(QObject):
     #region: record
     def recordData(self):
         self.drec = datarectools.Datarecorder(self.positioner)
-        self.drec.samplerate= 100
-        self.drec.options= datarectools.RecordOptions.ACTUAL_POSITION_2,
-                            
+        self.drec.samplerate= 200 #Multiple of operating cycle (50 us)
+        self.drec.options= datarectools.RecordOptions.ACTUAL_POSITION_2,          
         self.drec.sources= self.axis
         self.drec.trigsources= datarectools.TriggerSources.POSITION_CHANGING_COMMAND_1
         self.drec.arm()
 
     def processData(self):
-        self.drec.wait()
         print('Processing Data')
-        header, data = self.drec.read()
-        npdata = np.array([self.drec.timescale, data[0]])
+        #print(self.drec.timescale)
+        header, data = self.drec.getdata()
+        npdata = np.array([data[0]])
+        print(npdata)
         np.savetxt('posOutput.txt', npdata, newline='\n', delimiter=',')
+        #np.savetxt('timeOutput.txt', timeData, newline='\n', delimiter=',')
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECM BL
@@ -246,7 +257,8 @@ class SECM_BL(QObject):
       
         self.settings:UI_Settings.SECM= SECMsettings
         self.mapSettings:UI_Settings.Mapping= mapSettings
-        self.event_ready:threading.Event= event['ready']
+        self.eventPI:threading.Event= event['PI']
+        self.eventBL:threading.Event= event['BL']
         self.event_stop:threading.Event= event['stop']
         self.techniqueList= None
 
@@ -256,7 +268,7 @@ class SECM_BL(QObject):
         try:
             #By default coarse approach with Z-stage settings
             expTime=10800
-            timestep= 0.1
+            timestep= 0.01
             nBulk= 50
 
             #Storage for measuring bulk current
@@ -266,8 +278,8 @@ class SECM_BL(QObject):
                 
                 case 1: #Case for fine approach with Piezo
                     expTime=3600
-                    timestep= 0.001
-                    nBulk= 5000
+                    timestep= 0.01
+                    nBulk= 500
             
             #For SECM approach curve for now only chronoamp approach
             approachSettings= UI_Settings.echemSettings('CA', duration=expTime, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
@@ -297,9 +309,10 @@ class SECM_BL(QObject):
                 print(f'bulk current measurement finished ibulk={iBulk} iMin={iMin} and iMax={iMax}')   
 
                 #Wait until positioners are reset to start potentiostat
+                self.eventBL.set() #Potentiostat ready
+                self.eventPI.wait() #Waiting for positioner to be ready for approach
                 print('Starting measurement')
-                self.event_ready.set() 
-                
+
                 #Once bulk current is established, start true measurement
                 while True: 
 

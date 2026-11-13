@@ -333,8 +333,8 @@ class Main(QMainWindow):
                 ExpSettings.techList= [self.itemTechPair[tech].settings for tech in self.experiments.getAll()] # Loading echem technique from UI techLost
                  
         self.events= {}
-        self.events['ready']= threading.Event()
-        self.events['limit']= threading.Event()
+        self.events['PI']= threading.Event()
+        self.events['BL']= threading.Event()
         self.events['stop']= threading.Event()
 
         #Thread assigned to the positioners control during approach
