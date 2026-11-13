@@ -96,10 +96,7 @@ class SECM_PI(QObject):
             self.XYstage.gcscommands.MOV(['1','2'], coordinates)
             while any(list(self.XYstage.gcscommands.IsMoving().values())):
                 time.sleep(0.25)
-                self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
-                                    round(self.XYstage.qPOS()['2'],3), 
-                                    round(self.Zstage.qPOS()['1']-25,3), 
-                                    round(self.Piezo.qPOS()['3'],3)])
+                self.updatePos()
 
             time.sleep(self.mapSettings.wait)
             self.event_ready.set()
@@ -171,10 +168,7 @@ class SECM_PI(QObject):
                     break
 
                 #While stage is moving it updates the position
-                self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
-                                    round(self.XYstage.qPOS()['2'],3), 
-                                    round(self.Zstage.qPOS()['1']-25,3), 
-                                    round(self.Piezo.qPOS()['3'],3)])
+                self.updatePos()
 
             self.event_stop.set()
 
@@ -202,14 +196,22 @@ class SECM_PI(QObject):
             print('executing finally block')
             self.Zstage.gcscommands.VEL('1', 1)
             self.Piezo.gcscommands.VEL('3', 5)
+            time.sleep(1)
+            self.updatePos()
             self.finished.emit()
-            
 
+    #region:utility
+
+    def updatePos(self):
+        self.position.emit([-1*round(self.XYstage.qPOS()['1'],3), 
+                            round(self.XYstage.qPOS()['2'],3), 
+                            round(self.Zstage.qPOS()['1']-25,3), 
+                            round(self.Piezo.qPOS()['3'],3)])
+    
     #region: record
     def recordData(self):
         self.drec = datarectools.Datarecorder(self.positioner)
-        self.drec.samplerate= 1000
-        #self.drec.numvalues= 1024
+        self.drec.samplerate= 100
         self.drec.options= datarectools.RecordOptions.ACTUAL_POSITION_2,
                             
         self.drec.sources= self.axis
@@ -219,39 +221,9 @@ class SECM_PI(QObject):
     def processData(self):
         self.drec.wait()
         print('Processing Data')
-        print(self.drec.timescale)
         header, data = self.drec.read()
-        #print(data[0])
-        #print(f'number of element recorded: {len(data[0])}')
-        npdata = np.array(data[0])
+        npdata = np.array([self.drec.timescale, data[0]])
         np.savetxt('posOutput.txt', npdata, newline='\n', delimiter=',')
-
-    """
-    def recorddata(self, axis:int):
-        Set up data recorder to record 2 tables for first axis after next motion command.
-        @type drec : pipython.datarectools.Datarecorder
-        
-        #Setting recording rate input*device sample rate
-        self.positioner.gcscommands.RTR(10)
-        print('RTR successful?')
-        #Setting trigger for PIdevice (<table#>,<Trigger source>,<Value>) -> (<table 1>,<Any movement command>,<Dummy>) 
-        self.positioner.gcscommands.DRT(0,1) 
-        print("DRT successful ?")
-        #Setting recording source for PIdevice (<table#>,<Data Source>,<Recording option>) -> (<table 1>,<Any movement command>,<Dummy>) 
-        self.positioner.gcscommands.DRC(1, '1', 2)
-        print("DRC successful ?")
-    
-    
-    #region: process
-    
-    def processdata(self):
-        print("processing data")
-        #print(f'qDRL:{self.positioner.gcscommands.qDRL()}')
-        print(self.positioner.gcscommands.qDRR(tables=1, offset=1, numvalues=1024))
-        print("processing data success?")
-    """
-
-
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #region: SECM BL
@@ -285,7 +257,7 @@ class SECM_BL(QObject):
             #By default coarse approach with Z-stage settings
             expTime=10800
             timestep= 0.1
-            nBulk= 30
+            nBulk= 50
 
             #Storage for measuring bulk current
             match self.settings.positioner:
@@ -294,8 +266,8 @@ class SECM_BL(QObject):
                 
                 case 1: #Case for fine approach with Piezo
                     expTime=3600
-                    timestep= 0.01
-                    nBulk= 300
+                    timestep= 0.001
+                    nBulk= 5000
             
             #For SECM approach curve for now only chronoamp approach
             approachSettings= UI_Settings.echemSettings('CA', duration=expTime, potential= self.settings.Eapp, dt=timestep, iRange= self.settings.iRange)
